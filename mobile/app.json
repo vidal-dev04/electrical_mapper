@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Electrical Network Mapper",
+    "slug": "electrical-network-mapper",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.electricalnetworkmapper.app"
+    },
+    "android": {
+      "package": "com.electricalnetworkmapper.app",
+      "permissions": [
+        "android.permission.DETECT_SCREEN_CAPTURE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    }
+  }
+}

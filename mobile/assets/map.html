@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Electrical Network Mapper</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+    }
+    .sync-status {
+      position: fixed;
+      top: 10px;
+      right: 60px;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      z-index: 1000;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
+    .sync-status.syncing {
+      background: #fff3cd;
+      border-left: 3px solid #ffc107;
+    }
+    .sync-status.synced {
+      background: #d4edda;
+      border-left: 3px solid #28a745;
+    }
+    .sync-status.error {
+      background: #f8d7da;
+      border-left: 3px solid #dc3545;
+    }
+    .properties-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 2000;
+      min-width: 300px;
+      max-width: 90vw;
+      display: none;
+    }
+    .properties-modal.active {
+      display: block;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1999;
+      display: none;
+    }
+    .modal-overlay.active {
+      display: block;
+    }
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .form-group textarea {
+      min-height: 60px;
+      resize: vertical;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .btn-primary {
+      background: #28a745;
+      color: white;
+    }
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="sync-indicator" class="sync-status synced">✓ Synchronisé (0 en attente)</div>
+  <div id="map"></div>
+  
+  <div id="modal-overlay" class="modal-overlay"></div>
+  <div id="properties-modal" class="properties-modal">
+    <h3 id="modal-title" style="margin-top: 0;">Propriétés</h3>
+    <form id="properties-form">
+      <div class="form-group">
+        <label>Type d'équipement *</label>
+        <select id="equipment-type" required>
+          <option value="">-- Sélectionner --</option>
+          <option value="cable_bt">Câble BT (Basse Tension)</option>
+          <option value="cable_mt">Câble MT (Moyenne Tension)</option>
+          <option value="cable_ht">Câble HT (Haute Tension)</option>
+          <option value="poteau">Poteau électrique</option>
+          <option value="transformateur">Transformateur</option>
+          <option value="compteur">Compteur</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Tension (V)</label>
+        <input type="text" id="voltage" placeholder="ex: 220, 15000, 63000">
+      </div>
+      
+      <div class="form-group">
+        <label>Propriétaire</label>
+        <input type="text" id="owner" placeholder="ex: CIE, Particulier">
+      </div>
+      
+      <div class="form-group">
+        <label>État</label>
+        <select id="status">
+          <option value="bon">Bon état</option>
+          <option value="moyen">État moyen</option>
+          <option value="mauvais">Mauvais état</option>
+          <option value="hs">Hors service</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="notes" placeholder="Observations, remarques..."></textarea>
+      </div>
+      
+      <div class="modal-buttons">
+        <button type="button" class="btn btn-secondary" id="cancel-btn">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+  
+  <script>
+    const map = L.map('map').setView([51.505, -0.09], 13);
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        map.setView([position.coords.latitude, position.coords.longitude], 15);
+      }, (error) => {
+        console.log('Geolocation error:', error);
+      });
+    }
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    map.pm.addControls({
+      position: 'topleft',
+      drawCircle: false,
+      drawCircleMarker: false,
+      drawRectangle: true,
+      drawPolygon: true,
+      drawPolyline: true,
+      drawMarker: true,
+      editMode: true,
+      dragMode: false,
+      cutPolygon: false,
+      removalMode: true,
+      rotateMode: false,
+    });
+
+    const features = new Map();
+    let pendingCount = 0;
+
+    function updateSyncIndicator(status, count = 0) {
+      const indicator = document.getElementById('sync-indicator');
+      pendingCount = count;
+      
+      indicator.className = 'sync-status ' + status;
+      
+      if (status === 'syncing') {
+        indicator.textContent = `⏳ Synchronisation... (${count} en attente)`;
+      } else if (status === 'synced') {
+        indicator.textContent = `✓ Synchronisé (${count} en attente)`;
+      } else if (status === 'error') {
+        indicator.textContent = `⚠ Erreur de synchro (${count} en attente)`;
+      }
+    }
+
+    function generateFeatureId() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    function featureToGeoJSON(layer) {
+      const geoJSON = layer.toGeoJSON();
+      return {
+        type: geoJSON.geometry.type,
+        coordinates: geoJSON.geometry.coordinates
+      };
+    }
+
+    function sendToReactNative(message) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(message));
+      } else {
+        console.log('Message to RN:', message);
+      }
+    }
+
+    let currentEditingLayer = null;
+    let currentEditingFeatureId = null;
+
+    function showPropertiesModal(layer, featureId, isNew = false) {
+      currentEditingLayer = layer;
+      currentEditingFeatureId = featureId;
+      
+      const modal = document.getElementById('properties-modal');
+      const overlay = document.getElementById('modal-overlay');
+      const title = document.getElementById('modal-title');
+      
+      title.textContent = isNew ? 'Nouvelles Propriétés' : 'Modifier Propriétés';
+      
+      if (layer.feature && layer.feature.properties) {
+        document.getElementById('equipment-type').value = layer.feature.properties.equipment_type || '';
+        document.getElementById('voltage').value = layer.feature.properties.voltage || '';
+        document.getElementById('owner').value = layer.feature.properties.owner || '';
+        document.getElementById('status').value = layer.feature.properties.status || 'bon';
+        document.getElementById('notes').value = layer.feature.properties.notes || '';
+      } else {
+        document.getElementById('properties-form').reset();
+      }
+      
+      modal.classList.add('active');
+      overlay.classList.add('active');
+    }
+
+    function hidePropertiesModal() {
+      document.getElementById('properties-modal').classList.remove('active');
+      document.getElementById('modal-overlay').classList.remove('active');
+      currentEditingLayer = null;
+      currentEditingFeatureId = null;
+    }
+
+    document.getElementById('cancel-btn').addEventListener('click', hidePropertiesModal);
+    document.getElementById('modal-overlay').addEventListener('click', hidePropertiesModal);
+
+    document.getElementById('properties-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      if (currentEditingLayer && currentEditingFeatureId) {
+        const properties = {
+          feature_type: currentEditingLayer.feature.properties.feature_type,
+          equipment_type: document.getElementById('equipment-type').value,
+          voltage: document.getElementById('voltage').value,
+          owner: document.getElementById('owner').value,
+          status: document.getElementById('status').value,
+          notes: document.getElementById('notes').value,
+          created_at: currentEditingLayer.feature.properties.created_at,
+          updated_at: new Date().toISOString()
+        };
+        
+        currentEditingLayer.feature.properties = properties;
+        
+        sendToReactNative({
+          type: 'feature_updated',
+          data: {
+            id: currentEditingFeatureId,
+            geometry: featureToGeoJSON(currentEditingLayer),
+            properties: properties
+          }
+        });
+        
+        hidePropertiesModal();
+      }
+    });
+
+    map.on('pm:create', (e) => {
+      const layer = e.layer;
+      const featureId = generateFeatureId();
+      
+      layer.feature = {
+        id: featureId,
+        type: 'Feature',
+        properties: {
+          feature_type: e.shape,
+          created_at: new Date().toISOString()
+        }
+      };
+
+      features.set(featureId, layer);
+
+      showPropertiesModal(layer, featureId, true);
+
+      layer.on('click', () => {
+        showPropertiesModal(layer, featureId, false);
+      });
+
+      layer.on('pm:edit', (editEvent) => {
+        sendToReactNative({
+          type: 'feature_updated',
+          data: {
+            id: featureId,
+            geometry: featureToGeoJSON(layer),
+            properties: layer.feature.properties
+          }
+        });
+      });
+
+      layer.on('pm:remove', () => {
+        features.delete(featureId);
+        sendToReactNative({
+          type: 'feature_deleted',
+          data: {
+            id: featureId
+          }
+        });
+      });
+    });
+
+    document.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('📨 Received message:', message);
+        
+        if (message.type === 'sync_status') {
+          updateSyncIndicator(message.status, message.queue_length || 0);
+        } else if (message.type === 'load_features') {
+          loadFeatures(message.features);
+        } else if (message.type === 'set_location') {
+          console.log('🗺️ Setting map location:', message.lat, message.lng);
+          map.setView([message.lat, message.lng], message.zoom || 15);
+        }
+      } catch (error) {
+        console.error('Message handling error:', error);
+      }
+    });
+    
+    window.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('📨 Received message (window):', message);
+        
+        if (message.type === 'sync_status') {
+          updateSyncIndicator(message.status, message.queue_length || 0);
+        } else if (message.type === 'load_features') {
+          loadFeatures(message.features);
+        } else if (message.type === 'set_location') {
+          console.log('🗺️ Setting map location (window):', message.lat, message.lng);
+          map.setView([message.lat, message.lng], message.zoom || 15);
+        }
+      } catch (error) {
+        console.error('Message handling error:', error);
+      }
+    });
+
+    function loadFeatures(featureCollection) {
+      if (!featureCollection || !featureCollection.features) return;
+
+      featureCollection.features.forEach(feature => {
+        const layer = L.geoJSON(feature).getLayers()[0];
+        
+        layer.feature = feature;
+        layer.addTo(map);
+        features.set(feature.id, layer);
+
+        layer.on('pm:edit', (editEvent) => {
+          sendToReactNative({
+            type: 'feature_updated',
+            data: {
+              id: feature.id,
+              geometry: featureToGeoJSON(layer),
+              properties: feature.properties
+            }
+          });
+        });
+
+        layer.on('pm:remove', () => {
+          features.delete(feature.id);
+          sendToReactNative({
+            type: 'feature_deleted',
+            data: {
+              id: feature.id
+            }
+          });
+        });
+      });
+
+      if (featureCollection.features.length > 0) {
+        const group = L.featureGroup(Array.from(features.values()));
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
+    }
+
+    sendToReactNative({ type: 'map_ready' });
+  </script>
+</body>
+</html>
