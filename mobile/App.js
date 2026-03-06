@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, SafeAreaView, Dimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import uuid from 'react-native-uuid';
 import TransactionQueue from './services/TransactionQueue';
+import { clearAllLocalData } from './utils/clearLocalData';
 
 export default function App() {
   const webViewRef = useRef(null);
@@ -64,32 +65,31 @@ export default function App() {
 
   const handleQueueEvent = (event) => {
     console.log('Queue event:', event);
-
+    
     const status = TransactionQueue.getQueueStatus();
     setQueueStatus(status);
 
     if (event.type === 'sync_started') {
       setSyncStatus('syncing');
-      sendToWebView({
-        type: 'sync_status',
-        status: 'syncing',
-        queue_length: status.pending
-      });
     } else if (event.type === 'sync_completed') {
       setSyncStatus('synced');
-      sendToWebView({
-        type: 'sync_status',
-        status: 'synced',
-        queue_length: status.pending
-      });
+      
+      // Notify WebView of successful transactions
+      if (event.successfulTransactions && event.successfulTransactions.length > 0) {
+        event.successfulTransactions.forEach(txn => {
+          if (txn.operation === 'create') {
+            sendToWebView({
+              type: 'feature_synced',
+              feature_id: txn.feature_id
+            });
+          }
+        });
+      }
     } else if (event.type === 'sync_error') {
       setSyncStatus('error');
-      sendToWebView({
-        type: 'sync_status',
-        status: 'error',
-        queue_length: status.pending
-      });
-    } else if (event.type === 'queue_updated') {
+    }
+
+    if (isMapReady) {
       sendToWebView({
         type: 'sync_status',
         status: syncStatus,
@@ -173,6 +173,56 @@ export default function App() {
     );
   };
 
+  const handleClearFailedTransactions = async () => {
+    const count = await TransactionQueue.clearFailedTransactions();
+    Alert.alert('Succès', `${count} transactions échouées supprimées`);
+  };
+
+  const handleShowQueueState = () => {
+    const status = TransactionQueue.getQueueStatus();
+    TransactionQueue.logQueueState();
+    
+    const message = `Total: ${status.total}\nEn attente: ${status.pending}\nÉchouées: ${status.failed}\nEn cours: ${status.processing ? 'Oui' : 'Non'}\n\nDétails complets dans les logs`;
+    
+    Alert.alert('📊 État de la queue', message);
+  };
+
+  const handleClearAllData = () => {
+    Alert.alert(
+      '⚠️ ATTENTION',
+      'Voulez-vous TOUT effacer ?\n\n' +
+      '✓ Queue de transactions locale\n' +
+      '✓ Toutes les données AsyncStorage\n' +
+      '✓ Tous les dessins sur la carte\n\n' +
+      'Cette action est IRRÉVERSIBLE.\n' +
+      'Les données serveur restent intactes.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'TOUT EFFACER',
+          style: 'destructive',
+          onPress: async () => {
+            const success = await clearAllLocalData();
+            if (success) {
+              // Envoyer message au WebView pour effacer tous les dessins
+              sendToWebView({
+                type: 'clear_all_features'
+              });
+              
+              Alert.alert(
+                'Succès',
+                'Données locales et dessins effacés.\nFermez et relancez l\'app.',
+                [{ text: 'OK' }]
+              );
+            } else {
+              Alert.alert('Erreur', 'Impossible d\'effacer les données');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleExportGeoJSON = async () => {
     try {
       const response = await fetch(`${TransactionQueue.getApiUrl()}/api/export/geojson`);
@@ -223,6 +273,14 @@ export default function App() {
             <Text style={styles.exportText}>📊 CSV</Text>
           </TouchableOpacity>
           
+          <TouchableOpacity style={styles.exportButton} onPress={handleShowQueueState}>
+            <Text style={styles.exportText}>🔍 Queue</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.exportButton} onPress={handleClearAllData}>
+            <Text style={styles.exportText}>🗑️ Effacer</Text>
+          </TouchableOpacity>
+          
           <View style={[
             styles.statusBadge,
             syncStatus === 'syncing' && styles.statusSyncing,
@@ -259,6 +317,10 @@ export default function App() {
   );
 }
 
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = width < 375;
+const isTablet = width >= 768;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -268,30 +330,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: width * 0.04,
+    paddingVertical: height * 0.015,
     backgroundColor: '#2196F3',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
+    flexWrap: 'wrap',
   },
   title: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 16 : isTablet ? 24 : 18,
     fontWeight: 'bold',
     color: '#fff',
+    marginRight: width * 0.02,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: isSmallScreen ? 8 : 12,
+    paddingVertical: isSmallScreen ? 4 : 6,
     borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    marginRight: 8,
+    marginRight: width * 0.02,
+    marginTop: height * 0.005,
   },
   statusSyncing: {
     backgroundColor: '#fff3cd',
@@ -303,30 +371,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8d7da',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: isSmallScreen ? 10 : isTablet ? 14 : 12,
     fontWeight: '600',
     color: '#333',
   },
   retryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: isSmallScreen ? 8 : 12,
+    paddingVertical: isSmallScreen ? 4 : 6,
     borderRadius: 12,
     backgroundColor: '#fff',
+    marginTop: height * 0.005,
   },
   retryText: {
-    fontSize: 12,
+    fontSize: isSmallScreen ? 10 : isTablet ? 14 : 12,
     fontWeight: '600',
     color: '#2196F3',
   },
   exportButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: isSmallScreen ? 6 : 10,
+    paddingVertical: isSmallScreen ? 3 : 5,
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.9)',
-    marginRight: 8,
+    marginRight: width * 0.015,
+    marginTop: height * 0.005,
   },
   exportText: {
-    fontSize: 11,
+    fontSize: isSmallScreen ? 9 : isTablet ? 13 : 11,
     fontWeight: '600',
     color: '#2196F3',
   },

@@ -3,7 +3,7 @@
     "name": "Electrical Network Mapper",
     "slug": "electrical-network-mapper",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "platforms": ["ios", "android"],
     "assetBundlePatterns": [

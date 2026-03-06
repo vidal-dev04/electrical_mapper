@@ -35,6 +35,6 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Network access: http://192.168.1.6:${PORT}/health`);
+  console.log(`🌐 Network access: http://192.168.1.12:${PORT}/health`);
   console.log(`🗺️  API endpoint: http://localhost:${PORT}/api`);
 });

@@ -22,12 +22,26 @@
       top: 10px;
       right: 60px;
       background: white;
-      padding: 8px 12px;
+      padding: 6px 10px;
       border-radius: 4px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
       z-index: 1000;
       font-family: Arial, sans-serif;
-      font-size: 12px;
+      font-size: 10px;
+    }
+    
+    @media (min-width: 375px) {
+      .sync-status {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .sync-status {
+        padding: 10px 16px;
+        font-size: 14px;
+      }
     }
     .sync-status.syncing {
       background: #fff3cd;
@@ -47,13 +61,30 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: white;
-      padding: 20px;
+      padding: 16px;
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       z-index: 2000;
-      min-width: 300px;
-      max-width: 90vw;
+      width: 90vw;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
       display: none;
+    }
+    
+    @media (min-width: 768px) {
+      .properties-modal {
+        padding: 24px;
+        max-width: 500px;
+        max-height: 85vh;
+      }
+    }
+    
+    @media (orientation: landscape) and (max-height: 500px) {
+      .properties-modal {
+        max-height: 90vh;
+        padding: 12px;
+      }
     }
     .properties-modal.active {
       display: block;
@@ -72,30 +103,81 @@
       display: block;
     }
     .form-group {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .form-group label {
       display: block;
       font-weight: bold;
       margin-bottom: 4px;
-      font-size: 12px;
+      font-size: 11px;
     }
     .form-group input, .form-group select, .form-group textarea {
       width: 100%;
       padding: 8px;
       border: 1px solid #ccc;
       border-radius: 4px;
-      font-size: 14px;
+      font-size: 13px;
       box-sizing: border-box;
     }
+    
+    @media (min-width: 375px) {
+      .form-group {
+        margin-bottom: 12px;
+      }
+      .form-group label {
+        font-size: 12px;
+      }
+      .form-group input, .form-group select, .form-group textarea {
+        font-size: 14px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .form-group {
+        margin-bottom: 16px;
+      }
+      .form-group label {
+        font-size: 14px;
+      }
+      .form-group input, .form-group select, .form-group textarea {
+        padding: 10px;
+        font-size: 16px;
+      }
+    }
     .form-group textarea {
-      min-height: 60px;
+      min-height: 50px;
       resize: vertical;
+    }
+    
+    @media (min-width: 375px) {
+      .form-group textarea {
+        min-height: 60px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .form-group textarea {
+        min-height: 80px;
+      }
     }
     .modal-buttons {
       display: flex;
       gap: 8px;
-      margin-top: 16px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    
+    @media (min-width: 375px) {
+      .modal-buttons {
+        margin-top: 16px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .modal-buttons {
+        gap: 12px;
+        margin-top: 20px;
+      }
     }
     .btn {
       flex: 1;
@@ -103,8 +185,23 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: bold;
+      min-height: 44px;
+      touch-action: manipulation;
+    }
+    
+    @media (min-width: 375px) {
+      .btn {
+        font-size: 14px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .btn {
+        font-size: 16px;
+        padding: 12px;
+      }
     }
     .btn-primary {
       background: #28a745;
@@ -191,7 +288,7 @@
 
     map.pm.addControls({
       position: 'topleft',
-      drawCircle: false,
+      drawCircle: true,
       drawCircleMarker: false,
       drawRectangle: true,
       drawPolygon: true,
@@ -206,6 +303,36 @@
 
     const features = new Map();
     let pendingCount = 0;
+
+    // Fonction pour obtenir la couleur selon le type d'équipement
+    function getEquipmentColor(equipmentType) {
+      if (!equipmentType) return '#3388ff'; // Bleu par défaut
+      
+      const type = equipmentType.toString().toLowerCase();
+      
+      // Câbles BT (Basse Tension) en orange
+      if (type.includes('bt') || type === 'cable_bt') return '#ff8800'; // 🟠 Orange
+      
+      // Câbles MT (Moyenne Tension) en bleu
+      if (type.includes('mt') || type === 'cable_mt') return '#0066ff'; // 🔵 Bleu
+      
+      // Câbles HT (Haute Tension) en rouge
+      if (type.includes('ht') || type === 'cable_ht') return '#ff0000'; // 🔴 Rouge
+      
+      // Transformateur en violet
+      if (type === 'transformateur') return '#9c27b0'; // 🟣 Violet
+      
+      // Poteau en marron
+      if (type === 'poteau') return '#8b4513'; // 🟤 Marron
+      
+      // Compteur en vert
+      if (type === 'compteur') return '#4caf50'; // 🟢 Vert
+      
+      // Autres en gris
+      if (type === 'autre') return '#757575'; // ⚫ Gris
+      
+      return '#3388ff'; // Bleu par défaut
+    }
 
     function updateSyncIndicator(status, count = 0) {
       const indicator = document.getElementById('sync-indicator');
@@ -248,10 +375,12 @@
 
     let currentEditingLayer = null;
     let currentEditingFeatureId = null;
+    let isNewFeature = false;
 
     function showPropertiesModal(layer, featureId, isNew = false) {
       currentEditingLayer = layer;
       currentEditingFeatureId = featureId;
+      isNewFeature = isNew;
       
       const modal = document.getElementById('properties-modal');
       const overlay = document.getElementById('modal-overlay');
@@ -300,14 +429,31 @@
         
         currentEditingLayer.feature.properties = properties;
         
+        // Appliquer la couleur selon le type d'équipement
+        const color = getEquipmentColor(properties.equipment_type);
+        if (currentEditingLayer.setStyle) {
+          currentEditingLayer.setStyle({ 
+            color: color, 
+            fillColor: color,
+            fillOpacity: 0.3 
+          });
+        }
+        
+        // Always send create if feature never synced to DB
+        const neverSynced = !currentEditingLayer.feature.properties.synced;
+        const messageType = (isNewFeature || neverSynced) ? 'feature_created' : 'feature_updated';
+        
         sendToReactNative({
-          type: 'feature_updated',
+          type: messageType,
           data: {
             id: currentEditingFeatureId,
+            type: currentEditingLayer.feature.properties.feature_type,
             geometry: featureToGeoJSON(currentEditingLayer),
             properties: properties
           }
         });
+        
+        console.log(`📤 Sending ${messageType} for feature ${currentEditingFeatureId}`);
         
         hidePropertiesModal();
       }
@@ -322,7 +468,8 @@
         type: 'Feature',
         properties: {
           feature_type: e.shape,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          synced: false  // Track if feature exists in DB
         }
       };
 
@@ -331,7 +478,9 @@
       showPropertiesModal(layer, featureId, true);
 
       layer.on('click', () => {
-        showPropertiesModal(layer, featureId, false);
+        // If feature never synced, still treat as new
+        const isStillNew = !layer.feature.properties.synced;
+        showPropertiesModal(layer, featureId, isStillNew);
       });
 
       layer.on('pm:edit', (editEvent) => {
@@ -368,6 +517,21 @@
         } else if (message.type === 'set_location') {
           console.log('🗺️ Setting map location:', message.lat, message.lng);
           map.setView([message.lat, message.lng], message.zoom || 15);
+        } else if (message.type === 'clear_all_features') {
+          console.log('🗑️ Clearing all features from map');
+          map.eachLayer((layer) => {
+            if (layer instanceof L.Path || layer instanceof L.Marker) {
+              map.removeLayer(layer);
+            }
+          });
+          features.clear();
+          console.log('✅ All features cleared from map');
+        } else if (message.type === 'feature_synced') {
+          const layer = features.get(message.feature_id);
+          if (layer && layer.feature && layer.feature.properties) {
+            layer.feature.properties.synced = true;
+            console.log(`✅ Feature ${message.feature_id} marked as synced`);
+          }
         }
       } catch (error) {
         console.error('Message handling error:', error);
@@ -386,6 +550,21 @@
         } else if (message.type === 'set_location') {
           console.log('🗺️ Setting map location (window):', message.lat, message.lng);
           map.setView([message.lat, message.lng], message.zoom || 15);
+        } else if (message.type === 'clear_all_features') {
+          console.log('🗑️ Clearing all features from map');
+          map.eachLayer((layer) => {
+            if (layer instanceof L.Path || layer instanceof L.Marker) {
+              map.removeLayer(layer);
+            }
+          });
+          features.clear();
+          console.log('✅ All features cleared from map');
+        } else if (message.type === 'feature_synced') {
+          const layer = features.get(message.feature_id);
+          if (layer && layer.feature && layer.feature.properties) {
+            layer.feature.properties.synced = true;
+            console.log(`✅ Feature ${message.feature_id} marked as synced (window)`);
+          }
         }
       } catch (error) {
         console.error('Message handling error:', error);
@@ -399,6 +578,19 @@
         const layer = L.geoJSON(feature).getLayers()[0];
         
         layer.feature = feature;
+        
+        // Appliquer la couleur selon le type d'équipement
+        if (feature.properties && feature.properties.equipment_type) {
+          const color = getEquipmentColor(feature.properties.equipment_type);
+          if (layer.setStyle) {
+            layer.setStyle({ 
+              color: color, 
+              fillColor: color,
+              fillOpacity: 0.3 
+            });
+          }
+        }
+        
         layer.addTo(map);
         features.set(feature.id, layer);
 
