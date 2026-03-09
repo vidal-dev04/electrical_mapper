@@ -229,7 +229,11 @@ class TransactionQueue {
   }
 
   getApiUrl() {
-    return 'http://192.168.1.12:3000';
+    // Production: remplacer par votre URL Render après déploiement
+    // return 'https://electrical-network-backend.onrender.com';
+    
+    // Développement local
+    return 'http://192.168.1.10:3000';
   }
 
   getQueueStatus() {
