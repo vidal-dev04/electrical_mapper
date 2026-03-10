@@ -221,43 +221,122 @@
   <div id="properties-modal" class="properties-modal">
     <h3 id="modal-title" style="margin-top: 0;">Propriétés</h3>
     <form id="properties-form">
-      <div class="form-group">
-        <label>Type d'équipement *</label>
-        <select id="equipment-type" required>
-          <option value="">-- Sélectionner --</option>
-          <option value="cable_bt">Câble BT (Basse Tension)</option>
-          <option value="cable_mt">Câble MT (Moyenne Tension)</option>
-          <option value="cable_ht">Câble HT (Haute Tension)</option>
-          <option value="poteau">Poteau électrique</option>
-          <option value="transformateur">Transformateur</option>
-          <option value="compteur">Compteur</option>
-          <option value="autre">Autre</option>
-        </select>
-      </div>
       
-      <div class="form-group">
-        <label>Tension (V)</label>
-        <input type="text" id="voltage" placeholder="ex: 220, 15000, 63000">
+      <!-- FORMULAIRE ÉQUIPEMENT (Marqueurs) -->
+      <div id="form-equipment" class="form-section" style="display:none;">
+        <div class="form-group">
+          <label>Type d'équipement *</label>
+          <select id="equipment-type" required>
+            <option value="">-- Sélectionner --</option>
+            <option value="tfo">Transformateur (Tfo)</option>
+            <option value="iacm">IACM</option>
+            <option value="poteau_bt">Poteau BT</option>
+            <option value="poteau_mt">Poteau MT</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Tension (V)</label>
+          <input type="text" id="eq-voltage" placeholder="ex: 220, 15000, 63000">
+        </div>
+        
+        <div class="form-group">
+          <label>Propriétaire</label>
+          <input type="text" id="eq-owner" placeholder="ex: CIE, Particulier">
+        </div>
+        
+        <div class="form-group">
+          <label>État</label>
+          <select id="eq-status">
+            <option value="bon">Bon état</option>
+            <option value="moyen">État moyen</option>
+            <option value="mauvais">Mauvais état</option>
+            <option value="hs">Hors service</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="eq-notes" placeholder="Observations, remarques..."></textarea>
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label>Propriétaire</label>
-        <input type="text" id="owner" placeholder="ex: CIE, Particulier">
+
+      <!-- FORMULAIRE LIGNE (Polylines) -->
+      <div id="form-line" class="form-section" style="display:none;">
+        <div class="form-group">
+          <label>Type de ligne *</label>
+          <select id="line-type" required>
+            <option value="">-- Sélectionner --</option>
+            <option value="ligne_bt">Ligne BT (Basse Tension)</option>
+            <option value="ligne_hta">Ligne HTA (Haute Tension)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Longueur</label>
+          <input type="text" id="line-length" readonly placeholder="Calculée automatiquement">
+        </div>
+        
+        <div class="form-group">
+          <label>Tension (V)</label>
+          <input type="text" id="line-voltage" placeholder="ex: 220, 15000, 63000">
+        </div>
+        
+        <div class="form-group">
+          <label>Propriétaire</label>
+          <input type="text" id="line-owner" placeholder="ex: CIE, Particulier">
+        </div>
+        
+        <div class="form-group">
+          <label>État</label>
+          <select id="line-status">
+            <option value="bon">Bon état</option>
+            <option value="moyen">État moyen</option>
+            <option value="mauvais">Mauvais état</option>
+            <option value="hs">Hors service</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="line-notes" placeholder="Observations, remarques..."></textarea>
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label>État</label>
-        <select id="status">
-          <option value="bon">Bon état</option>
-          <option value="moyen">État moyen</option>
-          <option value="mauvais">Mauvais état</option>
-          <option value="hs">Hors service</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label>Notes</label>
-        <textarea id="notes" placeholder="Observations, remarques..."></textarea>
+
+      <!-- FORMULAIRE ZONE (Polygones/Rectangles/Cercles) -->
+      <div id="form-zone" class="form-section" style="display:none;">
+        <div class="form-group">
+          <label>Statut *</label>
+          <select id="zone-status" required>
+            <option value="">-- Sélectionner --</option>
+            <option value="electrifiee">Zone électrifiée</option>
+            <option value="non_electrifiee">Zone non électrifiée</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Nom de la zone</label>
+          <input type="text" id="zone-name" placeholder="ex: Quartier Nord, Village A">
+        </div>
+        
+        <div class="form-group">
+          <label>Population estimée</label>
+          <input type="number" id="zone-population" placeholder="ex: 5000">
+        </div>
+        
+        <div class="form-group">
+          <label>Priorité</label>
+          <select id="zone-priority">
+            <option value="haute">Haute</option>
+            <option value="moyenne">Moyenne</option>
+            <option value="basse">Basse</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="zone-notes" placeholder="Observations, remarques..."></textarea>
+        </div>
       </div>
       
       <div class="modal-buttons">
@@ -304,34 +383,71 @@
     const features = new Map();
     let pendingCount = 0;
 
-    // Fonction pour obtenir la couleur selon le type d'équipement
-    function getEquipmentColor(equipmentType) {
-      if (!equipmentType) return '#3388ff'; // Bleu par défaut
+    // Fonction pour détecter le type de géométrie
+    function getGeometryType(layer) {
+      if (layer instanceof L.Marker) return 'marker';
+      if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) return 'line';
+      if (layer instanceof L.Polygon || layer instanceof L.Rectangle || layer instanceof L.Circle) return 'zone';
+      return 'unknown';
+    }
+
+    // Fonction pour calculer la longueur d'une ligne en mètres
+    function calculateLineLength(layer) {
+      if (!(layer instanceof L.Polyline)) return 0;
       
-      const type = equipmentType.toString().toLowerCase();
+      const latlngs = layer.getLatLngs();
+      let totalDistance = 0;
       
-      // Câbles BT (Basse Tension) en orange
-      if (type.includes('bt') || type === 'cable_bt') return '#ff8800'; // 🟠 Orange
+      for (let i = 0; i < latlngs.length - 1; i++) {
+        totalDistance += latlngs[i].distanceTo(latlngs[i + 1]);
+      }
       
-      // Câbles MT (Moyenne Tension) en bleu
-      if (type.includes('mt') || type === 'cable_mt') return '#0066ff'; // 🔵 Bleu
+      return totalDistance; // en mètres
+    }
+
+    // Fonction pour obtenir la couleur selon le type et les propriétés
+    function getFeatureColor(geometryType, properties) {
+      if (!properties) return '#3388ff';
       
-      // Câbles HT (Haute Tension) en rouge
-      if (type.includes('ht') || type === 'cable_ht') return '#ff0000'; // 🔴 Rouge
+      // ÉQUIPEMENTS (Marqueurs)
+      if (geometryType === 'marker') {
+        const equipType = properties.equipment_type || properties.type;
+        if (!equipType) return '#3388ff';
+        
+        const type = equipType.toString().toLowerCase();
+        if (type === 'tfo') return '#9c27b0'; // 🟣 Violet - Transformateur
+        if (type === 'iacm') return '#4caf50'; // 🟢 Vert - IACM
+        if (type === 'poteau_bt') return '#ff8800'; // 🟠 Orange - Poteau BT
+        if (type === 'poteau_mt') return '#0066ff'; // 🔵 Bleu - Poteau MT
+        
+        return '#3388ff'; // Bleu par défaut
+      }
       
-      // Transformateur en violet
-      if (type === 'transformateur') return '#9c27b0'; // 🟣 Violet
+      // LIGNES (Polylines)
+      if (geometryType === 'line') {
+        const lineType = properties.line_type || properties.type;
+        if (!lineType) return '#3388ff';
+        
+        const type = lineType.toString().toLowerCase();
+        if (type === 'ligne_bt') return '#ff8800'; // � Orange - Ligne BT
+        if (type === 'ligne_hta') return '#ff0000'; // � Rouge - Ligne HTA
+        
+        return '#3388ff'; // Bleu par défaut
+      }
       
-      // Poteau en marron
-      if (type === 'poteau') return '#8b4513'; // 🟤 Marron
+      // ZONES (Polygones/Rectangles/Cercles)
+      if (geometryType === 'zone') {
+        const zoneStatus = properties.zone_status || properties.status;
+        if (!zoneStatus) return '#3388ff';
+        
+        const status = zoneStatus.toString().toLowerCase();
+        if (status === 'electrifiee') return '#4caf50'; // 🟢 Vert - Électrifiée
+        if (status === 'non_electrifiee') return '#ff0000'; // 🔴 Rouge - Non électrifiée
+        
+        return '#3388ff'; // Bleu par défaut
+      }
       
-      // Compteur en vert
-      if (type === 'compteur') return '#4caf50'; // 🟢 Vert
-      
-      // Autres en gris
-      if (type === 'autre') return '#757575'; // ⚫ Gris
-      
-      return '#3388ff'; // Bleu par défaut
+      return '#3388ff';
     }
 
     function updateSyncIndicator(status, count = 0) {
@@ -386,16 +502,61 @@
       const overlay = document.getElementById('modal-overlay');
       const title = document.getElementById('modal-title');
       
-      title.textContent = isNew ? 'Nouvelles Propriétés' : 'Modifier Propriétés';
+      // Détecter le type de géométrie
+      const geometryType = getGeometryType(layer);
       
-      if (layer.feature && layer.feature.properties) {
-        document.getElementById('equipment-type').value = layer.feature.properties.equipment_type || '';
-        document.getElementById('voltage').value = layer.feature.properties.voltage || '';
-        document.getElementById('owner').value = layer.feature.properties.owner || '';
-        document.getElementById('status').value = layer.feature.properties.status || 'bon';
-        document.getElementById('notes').value = layer.feature.properties.notes || '';
-      } else {
-        document.getElementById('properties-form').reset();
+      // Masquer tous les formulaires et désactiver les champs required
+      document.getElementById('form-equipment').style.display = 'none';
+      document.getElementById('equipment-type').removeAttribute('required');
+      
+      document.getElementById('form-line').style.display = 'none';
+      document.getElementById('line-type').removeAttribute('required');
+      
+      document.getElementById('form-zone').style.display = 'none';
+      document.getElementById('zone-status').removeAttribute('required');
+      
+      // Afficher le bon formulaire et charger les données
+      if (geometryType === 'marker') {
+        title.textContent = isNew ? 'Nouvel Équipement' : 'Modifier Équipement';
+        document.getElementById('form-equipment').style.display = 'block';
+        document.getElementById('equipment-type').setAttribute('required', 'required');
+        
+        if (layer.feature && layer.feature.properties) {
+          document.getElementById('equipment-type').value = layer.feature.properties.equipment_type || '';
+          document.getElementById('eq-voltage').value = layer.feature.properties.voltage || '';
+          document.getElementById('eq-owner').value = layer.feature.properties.owner || '';
+          document.getElementById('eq-status').value = layer.feature.properties.status || 'bon';
+          document.getElementById('eq-notes').value = layer.feature.properties.notes || '';
+        }
+      } else if (geometryType === 'line') {
+        title.textContent = isNew ? 'Nouvelle Ligne' : 'Modifier Ligne';
+        document.getElementById('form-line').style.display = 'block';
+        document.getElementById('line-type').setAttribute('required', 'required');
+        
+        // Calculer et afficher la longueur
+        const lengthMeters = calculateLineLength(layer);
+        const lengthKm = (lengthMeters / 1000).toFixed(2);
+        document.getElementById('line-length').value = `${lengthMeters.toFixed(0)} m (${lengthKm} km)`;
+        
+        if (layer.feature && layer.feature.properties) {
+          document.getElementById('line-type').value = layer.feature.properties.line_type || '';
+          document.getElementById('line-voltage').value = layer.feature.properties.voltage || '';
+          document.getElementById('line-owner').value = layer.feature.properties.owner || '';
+          document.getElementById('line-status').value = layer.feature.properties.status || 'bon';
+          document.getElementById('line-notes').value = layer.feature.properties.notes || '';
+        }
+      } else if (geometryType === 'zone') {
+        title.textContent = isNew ? 'Nouvelle Zone' : 'Modifier Zone';
+        document.getElementById('form-zone').style.display = 'block';
+        document.getElementById('zone-status').setAttribute('required', 'required');
+        
+        if (layer.feature && layer.feature.properties) {
+          document.getElementById('zone-status').value = layer.feature.properties.zone_status || '';
+          document.getElementById('zone-name').value = layer.feature.properties.name || '';
+          document.getElementById('zone-population').value = layer.feature.properties.population || '';
+          document.getElementById('zone-priority').value = layer.feature.properties.priority || 'moyenne';
+          document.getElementById('zone-notes').value = layer.feature.properties.notes || '';
+        }
       }
       
       modal.classList.add('active');
@@ -416,21 +577,42 @@
       e.preventDefault();
       
       if (currentEditingLayer && currentEditingFeatureId) {
-        const properties = {
-          feature_type: currentEditingLayer.feature.properties.feature_type,
-          equipment_type: document.getElementById('equipment-type').value,
-          voltage: document.getElementById('voltage').value,
-          owner: document.getElementById('owner').value,
-          status: document.getElementById('status').value,
-          notes: document.getElementById('notes').value,
+        const geometryType = getGeometryType(currentEditingLayer);
+        let properties = {
+          feature_type: currentEditingLayer.feature.properties.feature_type || 'Feature',
           created_at: currentEditingLayer.feature.properties.created_at,
           updated_at: new Date().toISOString()
         };
         
+        // Collecter les propriétés selon le type de géométrie
+        if (geometryType === 'marker') {
+          // ÉQUIPEMENT
+          properties.equipment_type = document.getElementById('equipment-type').value;
+          properties.voltage = document.getElementById('eq-voltage').value;
+          properties.owner = document.getElementById('eq-owner').value;
+          properties.status = document.getElementById('eq-status').value;
+          properties.notes = document.getElementById('eq-notes').value;
+        } else if (geometryType === 'line') {
+          // LIGNE
+          properties.line_type = document.getElementById('line-type').value;
+          properties.length_meters = calculateLineLength(currentEditingLayer);
+          properties.voltage = document.getElementById('line-voltage').value;
+          properties.owner = document.getElementById('line-owner').value;
+          properties.status = document.getElementById('line-status').value;
+          properties.notes = document.getElementById('line-notes').value;
+        } else if (geometryType === 'zone') {
+          // ZONE
+          properties.zone_status = document.getElementById('zone-status').value;
+          properties.name = document.getElementById('zone-name').value;
+          properties.population = document.getElementById('zone-population').value;
+          properties.priority = document.getElementById('zone-priority').value;
+          properties.notes = document.getElementById('zone-notes').value;
+        }
+        
         currentEditingLayer.feature.properties = properties;
         
-        // Appliquer la couleur selon le type d'équipement
-        const color = getEquipmentColor(properties.equipment_type);
+        // Appliquer la couleur selon le type de géométrie et les propriétés
+        const color = getFeatureColor(geometryType, properties);
         if (currentEditingLayer.setStyle) {
           currentEditingLayer.setStyle({ 
             color: color, 
@@ -579,9 +761,10 @@
         
         layer.feature = feature;
         
-        // Appliquer la couleur selon le type d'équipement
-        if (feature.properties && feature.properties.equipment_type) {
-          const color = getEquipmentColor(feature.properties.equipment_type);
+        // Détecter le type de géométrie et appliquer la couleur appropriée
+        const geometryType = getGeometryType(layer);
+        if (feature.properties) {
+          const color = getFeatureColor(geometryType, feature.properties);
           if (layer.setStyle) {
             layer.setStyle({ 
               color: color, 
