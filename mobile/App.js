@@ -262,43 +262,31 @@ export default function App() {
       <StatusBar style="auto" />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Réseau Électrique</Text>
+        <Text style={styles.title}>RÉSEAU ÉLECTRIQUE</Text>
+      </View>
+      
+      <View style={styles.floatingButtons}>
+        <TouchableOpacity style={styles.exportButton} onPress={handleExportGeoJSON}>
+          <Text style={styles.exportText}>📥 GeoJSON</Text>
+        </TouchableOpacity>
         
-        <View style={styles.statusContainer}>
-          <TouchableOpacity style={styles.exportButton} onPress={handleExportGeoJSON}>
-            <Text style={styles.exportText}>📥 GeoJSON</Text>
+        <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV}>
+          <Text style={styles.exportText}>📊 CSV</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.exportButton} onPress={handleShowQueueState}>
+          <Text style={styles.exportText}>🔍 Queue</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.exportButton} onPress={handleClearAllData}>
+          <Text style={styles.exportText}>🗑️ Effacer</Text>
+        </TouchableOpacity>
+        
+        {queueStatus.failed > 0 && (
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetrySync}>
+            <Text style={styles.retryText}>Réessayer</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV}>
-            <Text style={styles.exportText}>📊 CSV</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.exportButton} onPress={handleShowQueueState}>
-            <Text style={styles.exportText}>🔍 Queue</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.exportButton} onPress={handleClearAllData}>
-            <Text style={styles.exportText}>🗑️ Effacer</Text>
-          </TouchableOpacity>
-          
-          <View style={[
-            styles.statusBadge,
-            syncStatus === 'syncing' && styles.statusSyncing,
-            syncStatus === 'synced' && styles.statusSynced,
-            syncStatus === 'error' && styles.statusError
-          ]}>
-            <Text style={styles.statusText}>
-              {syncStatus === 'syncing' ? '⏳' : syncStatus === 'synced' ? '✓' : '⚠'}
-              {' '}{queueStatus.pending} en attente
-            </Text>
-          </View>
-
-          {queueStatus.failed > 0 && (
-            <TouchableOpacity style={styles.retryButton} onPress={handleRetrySync}>
-              <Text style={styles.retryText}>Réessayer</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        )}
       </View>
 
       <WebView
@@ -328,9 +316,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: width * 0.04,
     paddingVertical: height * 0.015,
     backgroundColor: '#2196F3',
     elevation: 4,
@@ -338,13 +325,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
-    flexWrap: 'wrap',
   },
   title: {
-    fontSize: isSmallScreen ? 16 : isTablet ? 24 : 18,
+    fontSize: isSmallScreen ? 18 : isTablet ? 24 : 20,
     fontWeight: 'bold',
     color: '#fff',
-    marginRight: width * 0.02,
+    textAlign: 'center',
+  },
+  floatingButtons: {
+    position: 'absolute',
+    bottom: 20,
+    right: 10,
+    zIndex: 1000,
+    flexDirection: 'column',
   },
   statusContainer: {
     flexDirection: 'row',
@@ -388,12 +381,16 @@ const styles = StyleSheet.create({
     color: '#2196F3',
   },
   exportButton: {
-    paddingHorizontal: isSmallScreen ? 6 : 10,
-    paddingVertical: isSmallScreen ? 3 : 5,
+    paddingHorizontal: isSmallScreen ? 8 : 12,
+    paddingVertical: isSmallScreen ? 6 : 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    marginRight: width * 0.015,
-    marginTop: height * 0.005,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   exportText: {
     fontSize: isSmallScreen ? 9 : isTablet ? 13 : 11,

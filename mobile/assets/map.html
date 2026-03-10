@@ -236,8 +236,18 @@
         </div>
         
         <div class="form-group">
-          <label>Tension (V)</label>
-          <input type="text" id="eq-voltage" placeholder="ex: 220, 15000, 63000">
+          <label>Nature</label>
+          <select id="eq-nature">
+            <option value="">-- Sélectionner --</option>
+            <option value="bois">Bois</option>
+            <option value="petit_jean">Petit jean</option>
+            <option value="beton">Béton</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Section (mm²)</label>
+          <input type="text" id="eq-section" placeholder="ex: 16, 25, 50">
         </div>
         
         <div class="form-group">
@@ -246,18 +256,8 @@
         </div>
         
         <div class="form-group">
-          <label>État</label>
-          <select id="eq-status">
-            <option value="bon">Bon état</option>
-            <option value="moyen">État moyen</option>
-            <option value="mauvais">Mauvais état</option>
-            <option value="hs">Hors service</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Notes</label>
-          <textarea id="eq-notes" placeholder="Observations, remarques..."></textarea>
+          <label>Description</label>
+          <textarea id="eq-description" placeholder="Observations, remarques..."></textarea>
         </div>
       </div>
 
@@ -273,13 +273,8 @@
         </div>
         
         <div class="form-group">
-          <label>Longueur</label>
-          <input type="text" id="line-length" readonly placeholder="Calculée automatiquement">
-        </div>
-        
-        <div class="form-group">
-          <label>Tension (V)</label>
-          <input type="text" id="line-voltage" placeholder="ex: 220, 15000, 63000">
+          <label>Section (mm²)</label>
+          <input type="text" id="line-section" placeholder="ex: 16, 25, 50">
         </div>
         
         <div class="form-group">
@@ -288,18 +283,8 @@
         </div>
         
         <div class="form-group">
-          <label>État</label>
-          <select id="line-status">
-            <option value="bon">Bon état</option>
-            <option value="moyen">État moyen</option>
-            <option value="mauvais">Mauvais état</option>
-            <option value="hs">Hors service</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Notes</label>
-          <textarea id="line-notes" placeholder="Observations, remarques..."></textarea>
+          <label>Description</label>
+          <textarea id="line-description" placeholder="Observations, remarques..."></textarea>
         </div>
       </div>
 
@@ -325,17 +310,8 @@
         </div>
         
         <div class="form-group">
-          <label>Priorité</label>
-          <select id="zone-priority">
-            <option value="haute">Haute</option>
-            <option value="moyenne">Moyenne</option>
-            <option value="basse">Basse</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Notes</label>
-          <textarea id="zone-notes" placeholder="Observations, remarques..."></textarea>
+          <label>Description</label>
+          <textarea id="zone-description" placeholder="Observations, remarques..."></textarea>
         </div>
       </div>
       
@@ -360,9 +336,36 @@
       });
     }
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Couche par défaut : OpenStreetMap
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19
+    });
+
+    // Couche satellite : Esri World Imagery
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN',
+      maxZoom: 19
+    });
+
+    // Couche relief : OpenTopoMap
+    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenTopoMap (CC-BY-SA)',
+      maxZoom: 17
+    });
+
+    // Ajouter la couche par défaut
+    osmLayer.addTo(map);
+
+    // Créer le contrôle de sélection des couches
+    const baseMaps = {
+      "🗺️ Carte par défaut": osmLayer,
+      "🛰️ Satellite": satelliteLayer,
+      "⛰️ Relief": topoLayer
+    };
+
+    L.control.layers(baseMaps, null, {
+      position: 'topright'
     }).addTo(map);
 
     map.pm.addControls({
@@ -523,27 +526,21 @@
         
         if (layer.feature && layer.feature.properties) {
           document.getElementById('equipment-type').value = layer.feature.properties.equipment_type || '';
-          document.getElementById('eq-voltage').value = layer.feature.properties.voltage || '';
+          document.getElementById('eq-nature').value = layer.feature.properties.nature || '';
+          document.getElementById('eq-section').value = layer.feature.properties.section || '';
           document.getElementById('eq-owner').value = layer.feature.properties.owner || '';
-          document.getElementById('eq-status').value = layer.feature.properties.status || 'bon';
-          document.getElementById('eq-notes').value = layer.feature.properties.notes || '';
+          document.getElementById('eq-description').value = layer.feature.properties.description || '';
         }
       } else if (geometryType === 'line') {
         title.textContent = isNew ? 'Nouvelle Ligne' : 'Modifier Ligne';
         document.getElementById('form-line').style.display = 'block';
         document.getElementById('line-type').setAttribute('required', 'required');
         
-        // Calculer et afficher la longueur
-        const lengthMeters = calculateLineLength(layer);
-        const lengthKm = (lengthMeters / 1000).toFixed(2);
-        document.getElementById('line-length').value = `${lengthMeters.toFixed(0)} m (${lengthKm} km)`;
-        
         if (layer.feature && layer.feature.properties) {
           document.getElementById('line-type').value = layer.feature.properties.line_type || '';
-          document.getElementById('line-voltage').value = layer.feature.properties.voltage || '';
+          document.getElementById('line-section').value = layer.feature.properties.section || '';
           document.getElementById('line-owner').value = layer.feature.properties.owner || '';
-          document.getElementById('line-status').value = layer.feature.properties.status || 'bon';
-          document.getElementById('line-notes').value = layer.feature.properties.notes || '';
+          document.getElementById('line-description').value = layer.feature.properties.description || '';
         }
       } else if (geometryType === 'zone') {
         title.textContent = isNew ? 'Nouvelle Zone' : 'Modifier Zone';
@@ -554,8 +551,7 @@
           document.getElementById('zone-status').value = layer.feature.properties.zone_status || '';
           document.getElementById('zone-name').value = layer.feature.properties.name || '';
           document.getElementById('zone-population').value = layer.feature.properties.population || '';
-          document.getElementById('zone-priority').value = layer.feature.properties.priority || 'moyenne';
-          document.getElementById('zone-notes').value = layer.feature.properties.notes || '';
+          document.getElementById('zone-description').value = layer.feature.properties.description || '';
         }
       }
       
@@ -588,25 +584,22 @@
         if (geometryType === 'marker') {
           // ÉQUIPEMENT
           properties.equipment_type = document.getElementById('equipment-type').value;
-          properties.voltage = document.getElementById('eq-voltage').value;
+          properties.nature = document.getElementById('eq-nature').value;
+          properties.section = document.getElementById('eq-section').value;
           properties.owner = document.getElementById('eq-owner').value;
-          properties.status = document.getElementById('eq-status').value;
-          properties.notes = document.getElementById('eq-notes').value;
+          properties.description = document.getElementById('eq-description').value;
         } else if (geometryType === 'line') {
           // LIGNE
           properties.line_type = document.getElementById('line-type').value;
-          properties.length_meters = calculateLineLength(currentEditingLayer);
-          properties.voltage = document.getElementById('line-voltage').value;
+          properties.section = document.getElementById('line-section').value;
           properties.owner = document.getElementById('line-owner').value;
-          properties.status = document.getElementById('line-status').value;
-          properties.notes = document.getElementById('line-notes').value;
+          properties.description = document.getElementById('line-description').value;
         } else if (geometryType === 'zone') {
           // ZONE
           properties.zone_status = document.getElementById('zone-status').value;
           properties.name = document.getElementById('zone-name').value;
           properties.population = document.getElementById('zone-population').value;
-          properties.priority = document.getElementById('zone-priority').value;
-          properties.notes = document.getElementById('zone-notes').value;
+          properties.description = document.getElementById('zone-description').value;
         }
         
         currentEditingLayer.feature.properties = properties;
