@@ -1,5 +1,6 @@
 import express from 'express';
 import transactionService from '../services/transactionService.js';
+import pool from '../db/pool.js';
 
 const router = express.Router();
 
@@ -90,6 +91,29 @@ router.post('/transaction', async (req, res) => {
     console.error('Transaction error:', error);
     res.status(500).json({ 
       status: 'error',
+      error: error.message 
+    });
+  }
+});
+
+// Endpoint pour supprimer TOUTES les features (pour le bouton Effacer)
+router.delete('/features/all', async (req, res) => {
+  try {
+    console.log('🗑️ DELETE /features/all - Suppression de toutes les features');
+    
+    const result = await pool.query('DELETE FROM electrical_features');
+    
+    console.log(`✅ ${result.rowCount} features supprimées`);
+    
+    res.json({ 
+      success: true, 
+      deletedCount: result.rowCount,
+      message: `${result.rowCount} features supprimées de la base de données`
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression des features:', error);
+    res.status(500).json({ 
+      success: false, 
       error: error.message 
     });
   }

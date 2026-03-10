@@ -326,14 +326,19 @@
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
   
   <script>
-    const map = L.map('map').setView([51.505, -0.09], 13);
+    const map = L.map('map').setView([0, 0], 2);
     
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         map.setView([position.coords.latitude, position.coords.longitude], 15);
       }, (error) => {
         console.log('Geolocation error:', error);
+        // Si la géolocalisation échoue, centrer sur la Côte d'Ivoire
+        map.setView([7.54, -5.55], 8);
       });
+    } else {
+      // Si pas de géolocalisation disponible, centrer sur la Côte d'Ivoire
+      map.setView([7.54, -5.55], 8);
     }
 
     // Couche par défaut : OpenStreetMap
@@ -478,10 +483,19 @@
 
     function featureToGeoJSON(layer) {
       const geoJSON = layer.toGeoJSON();
-      return {
+      const geometry = {
         type: geoJSON.geometry.type,
         coordinates: geoJSON.geometry.coordinates
       };
+      
+      // Pour les cercles, ajouter le rayon et le centre
+      if (layer instanceof L.Circle) {
+        geometry.type = 'Circle';
+        geometry.radius = layer.getRadius();
+        geometry.coordinates = [layer.getLatLng().lng, layer.getLatLng().lat];
+      }
+      
+      return geometry;
     }
 
     function sendToReactNative(message) {
@@ -750,7 +764,26 @@
       if (!featureCollection || !featureCollection.features) return;
 
       featureCollection.features.forEach(feature => {
-        const layer = L.geoJSON(feature).getLayers()[0];
+        let layer;
+        
+        // Gérer les cercles spécialement (pas du GeoJSON standard)
+        if (feature.geometry.type === 'Circle') {
+          const latlng = L.latLng(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
+          layer = L.circle(latlng, {
+            radius: feature.geometry.radius || 100
+          });
+        } 
+        // Gérer les autres géométries avec L.geoJSON
+        else {
+          const geoJsonLayer = L.geoJSON(feature, {
+            pointToLayer: (geoJsonPoint, latlng) => {
+              return L.marker(latlng);
+            }
+          });
+          layer = geoJsonLayer.getLayers()[0];
+        }
+        
+        if (!layer) return;
         
         layer.feature = feature;
         
@@ -764,11 +797,26 @@
               fillColor: color,
               fillOpacity: 0.3 
             });
+          } else if (layer.setIcon && geometryType === 'marker') {
+            // Pour les marqueurs, créer une icône colorée
+            const markerIcon = L.divIcon({
+              className: 'custom-marker',
+              html: `<div style="background-color: ${color}; width: 25px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white;"></div>`,
+              iconSize: [25, 40],
+              iconAnchor: [12, 40]
+            });
+            layer.setIcon(markerIcon);
           }
         }
         
         layer.addTo(map);
         features.set(feature.id, layer);
+
+        // Attacher l'event listener pour ouvrir le formulaire au clic
+        layer.on('click', () => {
+          const isStillNew = !layer.feature.properties.synced;
+          showPropertiesModal(layer, feature.id, isStillNew);
+        });
 
         layer.on('pm:edit', (editEvent) => {
           sendToReactNative({

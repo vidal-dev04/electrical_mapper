@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, SafeAreaView, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, SafeAreaView, Dimensions, Modal, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import uuid from 'react-native-uuid';
 import TransactionQueue from './services/TransactionQueue';
 import { clearAllLocalData } from './utils/clearLocalData';
@@ -12,6 +15,7 @@ export default function App() {
   const [queueStatus, setQueueStatus] = useState({ total: 0, pending: 0, failed: 0 });
   const [isMapReady, setIsMapReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState('synced');
+  const [exportModal, setExportModal] = useState({ visible: false, type: '', data: null, stats: null });
 
   useEffect(() => {
     const clientId = uuid.v4();
@@ -193,29 +197,51 @@ export default function App() {
       'Voulez-vous TOUT effacer ?\n\n' +
       '✓ Queue de transactions locale\n' +
       '✓ Toutes les données AsyncStorage\n' +
-      '✓ Tous les dessins sur la carte\n\n' +
-      'Cette action est IRRÉVERSIBLE.\n' +
-      'Les données serveur restent intactes.',
+      '✓ Tous les dessins sur la carte\n' +
+      '✓ TOUTES les features de la base de données\n\n' +
+      'Cette action est IRRÉVERSIBLE !',
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'TOUT EFFACER',
           style: 'destructive',
           onPress: async () => {
-            const success = await clearAllLocalData();
-            if (success) {
-              // Envoyer message au WebView pour effacer tous les dessins
+            try {
+              // 1. Supprimer les données locales
+              const success = await clearAllLocalData();
+              if (!success) {
+                throw new Error('Échec de la suppression des données locales');
+              }
+              
+              // 2. Supprimer les features de la base de données
+              const apiUrl = TransactionQueue.getApiUrl();
+              const response = await fetch(`${apiUrl}/features/all`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                }
+              });
+              
+              if (!response.ok) {
+                console.warn('⚠️ Erreur lors de la suppression BD, mais données locales effacées');
+              } else {
+                const result = await response.json();
+                console.log(`✅ ${result.deletedCount} features supprimées de la BD`);
+              }
+              
+              // 3. Envoyer message au WebView pour effacer tous les dessins
               sendToWebView({
                 type: 'clear_all_features'
               });
               
               Alert.alert(
                 'Succès',
-                'Données locales et dessins effacés.\nFermez et relancez l\'app.',
+                'Toutes les données effacées (local + serveur).\nRechargez l\'app.',
                 [{ text: 'OK' }]
               );
-            } else {
-              Alert.alert('Erreur', 'Impossible d\'effacer les données');
+            } catch (error) {
+              console.error('❌ Erreur lors de l\'effacement:', error);
+              Alert.alert('Erreur', `Impossible d'effacer les données: ${error.message}`);
             }
           }
         }
@@ -228,8 +254,23 @@ export default function App() {
       const response = await fetch(`${TransactionQueue.getApiUrl()}/api/export/geojson`);
       if (response.ok) {
         const data = await response.json();
-        console.log('GeoJSON Export:', JSON.stringify(data, null, 2));
-        Alert.alert('Export GeoJSON', `${data.features.length} features exportées. Voir les logs.`);
+        
+        // Calculer les statistiques
+        const stats = {
+          total: data.features.length,
+          equipments: data.features.filter(f => f.properties.equipment_type).length,
+          lines: data.features.filter(f => f.properties.line_type).length,
+          zones: data.features.filter(f => f.properties.zone_status).length,
+          size: (JSON.stringify(data).length / 1024).toFixed(1) + ' KB',
+          date: new Date().toLocaleString('fr-FR')
+        };
+        
+        setExportModal({
+          visible: true,
+          type: 'GeoJSON',
+          data: JSON.stringify(data, null, 2),
+          stats: stats
+        });
       } else {
         Alert.alert('Erreur', 'Impossible d\'exporter les données');
       }
@@ -241,17 +282,91 @@ export default function App() {
 
   const handleExportCSV = async () => {
     try {
-      const response = await fetch(`${TransactionQueue.getApiUrl()}/api/export/csv`);
+      const response = await fetch(`${TransactionQueue.getApiUrl()}/api/export/html`);
       if (response.ok) {
-        const csv = await response.text();
-        console.log('CSV Export:', csv);
-        Alert.alert('Export CSV', 'Données exportées. Voir les logs.');
+        const html = await response.text();
+        
+        // Extraire les statistiques du HTML (regex simple)
+        const totalMatch = html.match(/Total<\/div>\s*<div class="stat-value">(\d+)<\/div>/);
+        const equipMatch = html.match(/Équipements<\/div>\s*<div class="stat-value">(\d+)<\/div>/);
+        const linesMatch = html.match(/Lignes<\/div>\s*<div class="stat-value">(\d+)<\/div>/);
+        const zonesMatch = html.match(/Zones<\/div>\s*<div class="stat-value">(\d+)<\/div>/);
+        
+        const stats = {
+          total: totalMatch ? parseInt(totalMatch[1]) : 0,
+          equipments: equipMatch ? parseInt(equipMatch[1]) : 0,
+          lines: linesMatch ? parseInt(linesMatch[1]) : 0,
+          zones: zonesMatch ? parseInt(zonesMatch[1]) : 0,
+          size: (html.length / 1024).toFixed(1) + ' KB',
+          date: new Date().toLocaleString('fr-FR')
+        };
+        
+        setExportModal({
+          visible: true,
+          type: 'HTML',
+          data: html,
+          stats: stats
+        });
       } else {
         Alert.alert('Erreur', 'Impossible d\'exporter les données');
       }
     } catch (error) {
       console.error('Export error:', error);
       Alert.alert('Erreur', error.message);
+    }
+  };
+
+  const handleShareExport = async () => {
+    try {
+      const { type, data } = exportModal;
+      let extension, mimeType;
+      
+      if (type === 'GeoJSON') {
+        extension = 'geojson';
+        mimeType = 'application/geo+json';
+      } else if (type === 'HTML') {
+        extension = 'html';
+        mimeType = 'text/html';
+      } else {
+        extension = 'csv';
+        mimeType = 'text/csv';
+      }
+      
+      const filename = `reseau_electrique_${Date.now()}.${extension}`;
+      
+      // Créer un fichier temporaire
+      const fileUri = FileSystem.cacheDirectory + filename;
+      await FileSystem.writeAsStringAsync(fileUri, data, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // Vérifier si le partage est disponible
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: mimeType,
+          dialogTitle: `Partager ${type === 'HTML' ? 'Tableau' : type}`,
+          UTI: mimeType
+        });
+      } else {
+        Alert.alert('Erreur', 'Le partage n\'est pas disponible sur cet appareil');
+      }
+      
+      setExportModal({ visible: false, type: '', data: null, stats: null });
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert('Erreur', `Impossible de partager: ${error.message}`);
+    }
+  };
+
+  const handleCopyExport = async () => {
+    try {
+      await Clipboard.setStringAsync(exportModal.data);
+      Alert.alert('✅ Copié', `${exportModal.type} copié dans le presse-papier`);
+      setExportModal({ visible: false, type: '', data: null, stats: null });
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Erreur', `Impossible de copier: ${error.message}`);
     }
   };
 
@@ -271,7 +386,7 @@ export default function App() {
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV}>
-          <Text style={styles.exportText}>📊 CSV</Text>
+          <Text style={styles.exportText}>📊 Tableau</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.exportButton} onPress={handleShowQueueState}>
@@ -288,6 +403,59 @@ export default function App() {
           </TouchableOpacity>
         )}
       </View>
+
+      <Modal
+        visible={exportModal.visible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setExportModal({ visible: false, type: '', data: null, stats: null })}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>📤 Export {exportModal.type}</Text>
+            
+            {exportModal.stats && (
+              <View style={styles.statsContainer}>
+                <Text style={styles.statsTitle}>✅ {exportModal.stats.total} features trouvées</Text>
+                
+                {exportModal.type === 'GeoJSON' && (
+                  <View style={styles.statsDetail}>
+                    <Text style={styles.statsText}>📍 {exportModal.stats.equipments} Équipements</Text>
+                    <Text style={styles.statsText}>━  {exportModal.stats.lines} Lignes</Text>
+                    <Text style={styles.statsText}>▭  {exportModal.stats.zones} Zones</Text>
+                  </View>
+                )}
+                
+                <Text style={styles.statsText}>📅 {exportModal.stats.date}</Text>
+                <Text style={styles.statsText}>📦 {exportModal.stats.size}</Text>
+              </View>
+            )}
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.shareButton]} 
+                onPress={handleShareExport}
+              >
+                <Text style={styles.modalButtonText}>📤 Partager</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.copyButton]} 
+                onPress={handleCopyExport}
+              >
+                <Text style={styles.modalButtonText}>📋 Copier</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={() => setExportModal({ visible: false, type: '', data: null, stats: null })}
+            >
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <WebView
         ref={webViewRef}
@@ -399,5 +567,84 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#2196F3',
+  },
+  statsContainer: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#333',
+  },
+  statsDetail: {
+    marginLeft: 12,
+    marginBottom: 12,
+  },
+  statsText: {
+    fontSize: 15,
+    marginVertical: 4,
+    color: '#555',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginHorizontal: 6,
+    alignItems: 'center',
+  },
+  shareButton: {
+    backgroundColor: '#4CAF50',
+  },
+  copyButton: {
+    backgroundColor: '#2196F3',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
   },
 });

@@ -160,7 +160,7 @@ class TransactionService {
   }
 
   _geometryToWKT(geoJsonGeometry) {
-    const { type, coordinates } = geoJsonGeometry;
+    const { type, coordinates, radius } = geoJsonGeometry;
     
     switch (type) {
       case 'Point':
@@ -176,6 +176,29 @@ class TransactionService {
           return `(${ringCoords})`;
         }).join(', ');
         return `POLYGON(${rings})`;
+      
+      case 'Circle':
+        // Convertir le cercle en polygone avec approximation
+        // coordinates = [lng, lat], radius en mètres
+        const [centerLng, centerLat] = coordinates;
+        const radiusInMeters = radius || 100;
+        
+        // Approximation : 1 degré ≈ 111,320 mètres à l'équateur
+        // Ajuster pour la latitude
+        const radiusInDegreesLat = radiusInMeters / 111320;
+        const radiusInDegreesLng = radiusInMeters / (111320 * Math.cos(centerLat * Math.PI / 180));
+        
+        // Créer un polygone avec 32 points
+        const numPoints = 32;
+        const circlePoints = [];
+        for (let i = 0; i <= numPoints; i++) {
+          const angle = (i * 2 * Math.PI) / numPoints;
+          const lng = centerLng + radiusInDegreesLng * Math.cos(angle);
+          const lat = centerLat + radiusInDegreesLat * Math.sin(angle);
+          circlePoints.push(`${lng} ${lat}`);
+        }
+        
+        return `POLYGON((${circlePoints.join(', ')}))`;
       
       default:
         throw new Error(`Unsupported geometry type: ${type}`);
