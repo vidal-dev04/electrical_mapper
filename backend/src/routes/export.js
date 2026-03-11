@@ -115,25 +115,11 @@ router.get('/html', async (req, res) => {
         feature_type,
         ST_X(ST_Centroid(geometry)) as longitude,
         ST_Y(ST_Centroid(geometry)) as latitude,
-        properties->>'equipment_type' as equipment_type,
-        properties->>'line_type' as line_type,
-        properties->>'zone_status' as zone_status,
-        properties->>'eq_section' as eq_section,
-        properties->>'eq_voltage' as eq_voltage,
-        properties->>'eq_owner' as eq_owner,
-        properties->>'eq_status' as eq_status,
-        properties->>'eq_notes' as eq_notes,
-        properties->>'line_length' as line_length,
-        properties->>'line_voltage' as line_voltage,
-        properties->>'line_owner' as line_owner,
-        properties->>'line_status' as line_status,
-        properties->>'line_notes' as line_notes,
-        properties->>'name' as name,
-        properties->>'population' as population,
-        properties->>'description' as description,
+        properties,
         created_at,
         updated_at
       FROM electrical_features
+      WHERE deleted_at IS NULL
       ORDER BY created_at DESC
     `);
 
@@ -152,11 +138,11 @@ router.get('/html', async (req, res) => {
       return coord ? parseFloat(coord).toFixed(5) : '-';
     };
 
-    const getTypeLabel = (row) => {
-      if (row.equipment_type) return `📍 ${row.equipment_type}`;
-      if (row.line_type) return `━ ${row.line_type}`;
-      if (row.zone_status) return `▭ Zone ${row.zone_status}`;
-      return row.feature_type || '-';
+    const getTypeLabel = (props) => {
+      if (props.equipment_type) return `📍 ${props.equipment_type}`;
+      if (props.line_type) return `━ ${props.line_type}`;
+      if (props.zone_status) return `▭ Zone ${props.zone_status}`;
+      return '-';
     };
 
     const getGeometryIcon = (featureType) => {
@@ -251,11 +237,13 @@ router.get('/html', async (req, res) => {
     .table-container {
       background: white;
       border-radius: 8px;
-      overflow: hidden;
+      overflow-x: auto;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      -webkit-overflow-scrolling: touch;
     }
     table {
       width: 100%;
+      min-width: 800px;
       border-collapse: collapse;
     }
     thead {
@@ -331,15 +319,15 @@ router.get('/html', async (req, res) => {
       </div>
       <div class="stat-item">
         <div class="stat-label">📍 Équipements</div>
-        <div class="stat-value">${result.rows.filter(r => r.equipment_type).length}</div>
+        <div class="stat-value">${result.rows.filter(r => r.properties?.equipment_type).length}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">━ Lignes</div>
-        <div class="stat-value">${result.rows.filter(r => r.line_type).length}</div>
+        <div class="stat-value">${result.rows.filter(r => r.properties?.line_type).length}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">▭ Zones</div>
-        <div class="stat-value">${result.rows.filter(r => r.zone_status).length}</div>
+        <div class="stat-value">${result.rows.filter(r => r.properties?.zone_status).length}</div>
       </div>
     </div>
   </div>
@@ -357,44 +345,30 @@ router.get('/html', async (req, res) => {
       </thead>
       <tbody>
         ${result.rows.map(row => {
-          // Construire les détails selon le type
-          let details = '';
+          const props = row.properties || {};
           
-          if (row.equipment_type) {
-            // Pour les équipements
-            details = `
-              ${row.eq_section ? `<strong>Section:</strong> ${row.eq_section}<br>` : ''}
-              ${row.eq_voltage ? `<strong>Tension:</strong> ${row.eq_voltage} V<br>` : ''}
-              ${row.eq_owner ? `<strong>Propriétaire:</strong> ${row.eq_owner}<br>` : ''}
-              ${row.eq_status ? `<strong>État:</strong> ${row.eq_status}<br>` : ''}
-              ${row.eq_notes ? `<strong>Notes:</strong> ${row.eq_notes}` : ''}
-            `;
-          } else if (row.line_type) {
-            // Pour les lignes
-            details = `
-              ${row.line_length ? `<strong>Longueur:</strong> ${row.line_length} m<br>` : ''}
-              ${row.line_voltage ? `<strong>Tension:</strong> ${row.line_voltage} V<br>` : ''}
-              ${row.line_owner ? `<strong>Propriétaire:</strong> ${row.line_owner}<br>` : ''}
-              ${row.line_status ? `<strong>État:</strong> ${row.line_status}<br>` : ''}
-              ${row.line_notes ? `<strong>Notes:</strong> ${row.line_notes}` : ''}
-            `;
-          } else if (row.zone_status) {
-            // Pour les zones
-            details = `
-              ${row.name ? `<strong>Nom:</strong> ${row.name}<br>` : ''}
-              ${row.population ? `<strong>Population:</strong> ${row.population}<br>` : ''}
-              ${row.description ? `<strong>Description:</strong> ${row.description}` : ''}
-            `;
-          }
+          // Construire les détails selon le type - afficher TOUS les champs non-système
+          let details = [];
+          const excludeFields = ['feature_type', 'created_at', 'updated_at', 'synced', 'equipment_type', 'line_type', 'zone_status'];
           
-          // Nettoyer les détails vides
-          details = details.trim() || '-';
+          // Ajouter tous les champs qui ont une valeur
+          Object.keys(props).forEach(key => {
+            if (!excludeFields.includes(key) && props[key] && props[key] !== '') {
+              // Formater le nom du champ
+              const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+              details.push(`<strong>${label}:</strong> ${props[key]}`);
+            }
+          });
+          
+          const detailsHtml = details.length > 0 ? details.join('<br>') : '-';
+          
+          const typeClass = props.equipment_type ? 'type-marker' : props.line_type ? 'type-line' : 'type-zone';
           
           return `
           <tr>
             <td class="geometry-type">${getGeometryIcon(row.feature_type)} ${getGeometryName(row.feature_type)}</td>
-            <td class="${row.equipment_type ? 'type-marker' : row.line_type ? 'type-line' : 'type-zone'}">${getTypeLabel(row)}</td>
-            <td class="details">${details}</td>
+            <td class="${typeClass}">${getTypeLabel(props)}</td>
+            <td class="details">${detailsHtml}</td>
             <td class="coord">${formatCoord(row.latitude)}, ${formatCoord(row.longitude)}</td>
             <td>${formatDate(row.created_at)}</td>
           </tr>

@@ -443,21 +443,12 @@ export default function App() {
               </View>
             )}
             
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.shareButton]} 
-                onPress={handleShareExport}
-              >
-                <Text style={styles.modalButtonText}>📤 Partager</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.copyButton]} 
-                onPress={handleCopyExport}
-              >
-                <Text style={styles.modalButtonText}>📋 Copier</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.shareButton]} 
+              onPress={handleShareExport}
+            >
+              <Text style={styles.modalButtonText}>📤 Partager</Text>
+            </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.cancelButton}
@@ -627,24 +618,15 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     color: '#555',
   },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
   modalButton: {
-    flex: 1,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
-    marginHorizontal: 6,
+    marginBottom: 12,
     alignItems: 'center',
   },
   shareButton: {
     backgroundColor: '#4CAF50',
-  },
-  copyButton: {
-    backgroundColor: '#2196F3',
   },
   modalButtonText: {
     color: 'white',
