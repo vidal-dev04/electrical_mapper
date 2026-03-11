@@ -676,6 +676,10 @@
       showPropertiesModal(layer, featureId, true);
 
       layer.on('click', () => {
+        // Ne pas ouvrir le formulaire si le mode removal est actif
+        if (map.pm.globalRemovalModeEnabled()) {
+          return;
+        }
         // If feature never synced, still treat as new
         const isStillNew = !layer.feature.properties.synced;
         showPropertiesModal(layer, featureId, isStillNew);
@@ -839,6 +843,10 @@
 
         // Attacher l'event listener pour ouvrir le formulaire au clic
         layer.on('click', () => {
+          // Ne pas ouvrir le formulaire si le mode removal est actif
+          if (map.pm.globalRemovalModeEnabled()) {
+            return;
+          }
           // Features chargés depuis la BD ne sont jamais "nouveaux"
           showPropertiesModal(layer, feature.id, false);
         });

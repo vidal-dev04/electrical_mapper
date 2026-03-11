@@ -249,6 +249,22 @@ export default function App() {
     );
   };
 
+  const handleRefreshMap = async () => {
+    try {
+      const response = await fetch(`${TransactionQueue.getApiUrl()}/api/features`);
+      if (response.ok) {
+        const features = await response.json();
+        
+        sendToWebView({
+          type: 'load_features',
+          features: features
+        });
+      }
+    } catch (error) {
+      console.error('Refresh error:', error);
+    }
+  };
+
   const handleExportGeoJSON = async () => {
     try {
       const response = await fetch(`${TransactionQueue.getApiUrl()}/api/export/geojson`);
@@ -389,12 +405,8 @@ export default function App() {
           <Text style={styles.exportText}>📊 Tableau</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.exportButton} onPress={handleShowQueueState}>
-          <Text style={styles.exportText}>🔍 Queue</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.exportButton} onPress={handleClearAllData}>
-          <Text style={styles.exportText}>🗑️ Effacer</Text>
+        <TouchableOpacity style={styles.exportButton} onPress={handleRefreshMap}>
+          <Text style={styles.exportText}>� Actualiser</Text>
         </TouchableOpacity>
         
         {queueStatus.failed > 0 && (
