@@ -211,10 +211,34 @@
       background: #6c757d;
       color: white;
     }
+    .locate-btn {
+      position: fixed;
+      top: 130px;
+      right: 10px;
+      width: 44px;
+      height: 44px;
+      background: white;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      z-index: 10000;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      touch-action: manipulation;
+      pointer-events: auto;
+    }
+    .locate-btn:active {
+      background: #4CAF50;
+      transform: scale(0.95);
+    }
   </style>
 </head>
 <body>
   <div id="sync-indicator" class="sync-status synced">✓ Synchronisé (0 en attente)</div>
+  <button id="locate-btn" class="locate-btn" title="Ma position">📍</button>
   <div id="map"></div>
   
   <div id="modal-overlay" class="modal-overlay"></div>
@@ -326,7 +350,10 @@
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
   
   <script>
-    const map = L.map('map').setView([0, 0], 2);
+    const map = L.map('map', {
+      maxZoom: 20,
+      zoomControl: true
+    }).setView([0, 0], 2);
     
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -347,10 +374,11 @@
       maxZoom: 19
     });
 
-    // Couche satellite : Esri World Imagery
-    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '© Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN',
-      maxZoom: 19
+    // Couche satellite : Google Satellite Hybrid
+    const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      attribution: '© Google',
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
     });
 
     // Couche relief : OpenTopoMap
@@ -387,6 +415,13 @@
       cutPolygon: false,
       removalMode: true,
       rotateMode: true,
+    });
+
+    // Configuration des styles par défaut pour les lignes
+    map.pm.setPathOptions({
+      color: '#3388ff',
+      weight: 6,
+      opacity: 0.8
     });
 
     const features = new Map();
@@ -626,7 +661,8 @@
           currentEditingLayer.setStyle({ 
             color: color, 
             fillColor: color,
-            fillOpacity: 0.3 
+            fillOpacity: 0.3,
+            weight: geometryType === 'line' ? 6 : 3
           });
         }
         
@@ -834,7 +870,8 @@
           layer.setStyle({ 
             color: color, 
             fillColor: color,
-            fillOpacity: 0.3 
+            fillOpacity: 0.3,
+            weight: geometryType === 'line' ? 6 : 3
           });
         }
         
@@ -880,6 +917,46 @@
     }
 
     sendToReactNative({ type: 'map_ready' });
+
+    // Bouton de recentrage sur la position actuelle
+    const locateBtn = document.getElementById('locate-btn');
+    console.log('🔍 Locate button found:', locateBtn);
+    
+    if (locateBtn) {
+      locateBtn.addEventListener('click', (e) => {
+        console.log('🖱️ Bouton cliqué !');
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (navigator.geolocation) {
+          console.log('📍 Demande de recentrage sur position actuelle...');
+          locateBtn.style.background = '#e0e0e0';
+          
+          navigator.geolocation.getCurrentPosition((position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            console.log('✅ Position obtenue:', lat, lng);
+            
+            map.setView([lat, lng], 17);
+            locateBtn.style.background = 'white';
+          }, (error) => {
+            console.error('❌ Erreur de géolocalisation:', error);
+            locateBtn.style.background = 'white';
+            alert('Impossible d\'obtenir votre position. Vérifiez les autorisations de localisation.');
+          }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        } else {
+          console.error('❌ Géolocalisation non supportée');
+          alert('La géolocalisation n\'est pas supportée par votre navigateur.');
+        }
+      });
+      console.log('✅ Event listener attaché au bouton locate');
+    } else {
+      console.error('❌ Bouton locate-btn introuvable !');
+    }
   </script>
 </body>
 </html>
