@@ -18,6 +18,10 @@
     },
     "android": {
       "package": "com.electricalnetworkmapper.app",
+      "versionCode": 1,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "buildToolsVersion": "34.0.0",
       "permissions": [
         "android.permission.DETECT_SCREEN_CAPTURE",
         "android.permission.ACCESS_FINE_LOCATION",
