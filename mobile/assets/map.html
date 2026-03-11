@@ -381,11 +381,12 @@
       drawPolygon: true,
       drawPolyline: true,
       drawMarker: true,
+      drawText: false,
       editMode: true,
       dragMode: false,
       cutPolygon: false,
       removalMode: true,
-      rotateMode: false,
+      rotateMode: true,
     });
 
     const features = new Map();
@@ -591,7 +592,8 @@
         let properties = {
           feature_type: currentEditingLayer.feature.properties.feature_type || 'Feature',
           created_at: currentEditingLayer.feature.properties.created_at,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          synced: currentEditingLayer.feature.properties.synced || false  // PRÉSERVER synced
         };
         
         // Collecter les propriétés selon le type de géométrie
@@ -629,8 +631,15 @@
         }
         
         // Always send create if feature never synced to DB
-        const neverSynced = !currentEditingLayer.feature.properties.synced;
+        console.log('🔍 DEBUG - isNewFeature:', isNewFeature);
+        console.log('🔍 DEBUG - synced flag:', currentEditingLayer.feature.properties.synced);
+        console.log('🔍 DEBUG - properties.synced:', properties.synced);
+        
+        const neverSynced = !properties.synced;  // Utiliser properties.synced (mis à jour)
         const messageType = (isNewFeature || neverSynced) ? 'feature_created' : 'feature_updated';
+        
+        console.log('🔍 DEBUG - neverSynced:', neverSynced);
+        console.log('🔍 DEBUG - messageType:', messageType);
         
         sendToReactNative({
           type: messageType,
@@ -773,13 +782,33 @@
             radius: feature.geometry.radius || 100
           });
         } 
-        // Gérer les autres géométries avec L.geoJSON
-        else {
-          const geoJsonLayer = L.geoJSON(feature, {
-            pointToLayer: (geoJsonPoint, latlng) => {
-              return L.marker(latlng);
-            }
+        // Gérer les Points (marqueurs) spécialement
+        else if (feature.geometry.type === 'Point') {
+          const latlng = L.latLng(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
+          const color = getFeatureColor('marker', feature.properties);
+          
+          // Créer icône SVG en forme de goutte (comme Leaflet standard)
+          const svg = `
+            <svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 1.9 0.4 3.7 1.2 5.3L12.5 41l11.3-23.2c0.8-1.6 1.2-3.4 1.2-5.3C25 5.6 19.4 0 12.5 0z" 
+                    fill="${color}" stroke="white" stroke-width="2"/>
+              <circle cx="12.5" cy="12.5" r="4" fill="white" fill-opacity="0.3"/>
+            </svg>
+          `;
+          
+          const markerIcon = L.divIcon({
+            className: 'custom-marker-svg',
+            html: svg,
+            iconSize: [25, 41],
+            iconAnchor: [12.5, 41],
+            popupAnchor: [0, -41]
           });
+          
+          layer = L.marker(latlng, { icon: markerIcon });
+        }
+        // Gérer les autres géométries (Polygon, LineString, etc.)
+        else {
+          const geoJsonLayer = L.geoJSON(feature);
           layer = geoJsonLayer.getLayers()[0];
         }
         
@@ -787,26 +816,22 @@
         
         layer.feature = feature;
         
-        // Détecter le type de géométrie et appliquer la couleur appropriée
+        // IMPORTANT: Marquer comme synced car ce feature vient de la BD
+        if (!layer.feature.properties) {
+          layer.feature.properties = {};
+        }
+        layer.feature.properties.synced = true;
+        
+        // Appliquer la couleur pour les formes (lignes, polygones, cercles - PAS les marqueurs)
         const geometryType = getGeometryType(layer);
-        if (feature.properties) {
+        
+        if (feature.properties && geometryType !== 'marker' && layer.setStyle) {
           const color = getFeatureColor(geometryType, feature.properties);
-          if (layer.setStyle) {
-            layer.setStyle({ 
-              color: color, 
-              fillColor: color,
-              fillOpacity: 0.3 
-            });
-          } else if (layer.setIcon && geometryType === 'marker') {
-            // Pour les marqueurs, créer une icône colorée
-            const markerIcon = L.divIcon({
-              className: 'custom-marker',
-              html: `<div style="background-color: ${color}; width: 25px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white;"></div>`,
-              iconSize: [25, 40],
-              iconAnchor: [12, 40]
-            });
-            layer.setIcon(markerIcon);
-          }
+          layer.setStyle({ 
+            color: color, 
+            fillColor: color,
+            fillOpacity: 0.3 
+          });
         }
         
         layer.addTo(map);
@@ -814,8 +839,8 @@
 
         // Attacher l'event listener pour ouvrir le formulaire au clic
         layer.on('click', () => {
-          const isStillNew = !layer.feature.properties.synced;
-          showPropertiesModal(layer, feature.id, isStillNew);
+          // Features chargés depuis la BD ne sont jamais "nouveaux"
+          showPropertiesModal(layer, feature.id, false);
         });
 
         layer.on('pm:edit', (editEvent) => {

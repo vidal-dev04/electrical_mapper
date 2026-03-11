@@ -35,7 +35,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Network access: http://192.168.1.10:${PORT}/health`);
+  console.log(`🌐 Network access: http://192.168.1.4:${PORT}/health`);
   console.log(`🌐 Network access: https://electrical-network-backend.onrender.com/health`);
   console.log(`🗺️  API endpoint: http://localhost:${PORT}/api`);
 });

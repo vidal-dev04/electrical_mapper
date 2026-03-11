@@ -119,6 +119,15 @@ router.get('/html', async (req, res) => {
         properties->>'line_type' as line_type,
         properties->>'zone_status' as zone_status,
         properties->>'eq_section' as eq_section,
+        properties->>'eq_voltage' as eq_voltage,
+        properties->>'eq_owner' as eq_owner,
+        properties->>'eq_status' as eq_status,
+        properties->>'eq_notes' as eq_notes,
+        properties->>'line_length' as line_length,
+        properties->>'line_voltage' as line_voltage,
+        properties->>'line_owner' as line_owner,
+        properties->>'line_status' as line_status,
+        properties->>'line_notes' as line_notes,
         properties->>'name' as name,
         properties->>'population' as population,
         properties->>'description' as description,
@@ -148,6 +157,28 @@ router.get('/html', async (req, res) => {
       if (row.line_type) return `━ ${row.line_type}`;
       if (row.zone_status) return `▭ Zone ${row.zone_status}`;
       return row.feature_type || '-';
+    };
+
+    const getGeometryIcon = (featureType) => {
+      const icons = {
+        'Marker': '📍',
+        'Circle': '⭕',
+        'Rectangle': '▭',
+        'Polygon': '▲',
+        'Line': '━'
+      };
+      return icons[featureType] || '○';
+    };
+
+    const getGeometryName = (featureType) => {
+      const names = {
+        'Marker': 'Marqueur',
+        'Circle': 'Cercle',
+        'Rectangle': 'Rectangle',
+        'Polygon': 'Polygone',
+        'Line': 'Ligne'
+      };
+      return names[featureType] || featureType;
     };
 
     const html = `
@@ -251,10 +282,25 @@ router.get('/html', async (req, res) => {
     .type-marker { color: #9C27B0; }
     .type-line { color: #4CAF50; }
     .type-zone { color: #FF9800; }
+    .geometry-type {
+      font-weight: 600;
+      color: #2196F3;
+      white-space: nowrap;
+    }
+    .details {
+      font-size: 12px;
+      line-height: 1.5;
+      max-width: 300px;
+    }
+    .details strong {
+      color: #333;
+      font-weight: 600;
+    }
     .coord {
       font-family: 'Courier New', monospace;
       font-size: 11px;
       color: #666;
+      white-space: nowrap;
     }
     .footer {
       text-align: center;
@@ -302,25 +348,58 @@ router.get('/html', async (req, res) => {
     <table>
       <thead>
         <tr>
+          <th>Forme</th>
           <th>Type</th>
-          <th>Nom</th>
-          <th>Section</th>
-          <th>Population</th>
+          <th>Détails</th>
           <th>Coordonnées</th>
           <th>Date</th>
         </tr>
       </thead>
       <tbody>
-        ${result.rows.map(row => `
+        ${result.rows.map(row => {
+          // Construire les détails selon le type
+          let details = '';
+          
+          if (row.equipment_type) {
+            // Pour les équipements
+            details = `
+              ${row.eq_section ? `<strong>Section:</strong> ${row.eq_section}<br>` : ''}
+              ${row.eq_voltage ? `<strong>Tension:</strong> ${row.eq_voltage} V<br>` : ''}
+              ${row.eq_owner ? `<strong>Propriétaire:</strong> ${row.eq_owner}<br>` : ''}
+              ${row.eq_status ? `<strong>État:</strong> ${row.eq_status}<br>` : ''}
+              ${row.eq_notes ? `<strong>Notes:</strong> ${row.eq_notes}` : ''}
+            `;
+          } else if (row.line_type) {
+            // Pour les lignes
+            details = `
+              ${row.line_length ? `<strong>Longueur:</strong> ${row.line_length} m<br>` : ''}
+              ${row.line_voltage ? `<strong>Tension:</strong> ${row.line_voltage} V<br>` : ''}
+              ${row.line_owner ? `<strong>Propriétaire:</strong> ${row.line_owner}<br>` : ''}
+              ${row.line_status ? `<strong>État:</strong> ${row.line_status}<br>` : ''}
+              ${row.line_notes ? `<strong>Notes:</strong> ${row.line_notes}` : ''}
+            `;
+          } else if (row.zone_status) {
+            // Pour les zones
+            details = `
+              ${row.name ? `<strong>Nom:</strong> ${row.name}<br>` : ''}
+              ${row.population ? `<strong>Population:</strong> ${row.population}<br>` : ''}
+              ${row.description ? `<strong>Description:</strong> ${row.description}` : ''}
+            `;
+          }
+          
+          // Nettoyer les détails vides
+          details = details.trim() || '-';
+          
+          return `
           <tr>
+            <td class="geometry-type">${getGeometryIcon(row.feature_type)} ${getGeometryName(row.feature_type)}</td>
             <td class="${row.equipment_type ? 'type-marker' : row.line_type ? 'type-line' : 'type-zone'}">${getTypeLabel(row)}</td>
-            <td>${row.name || '-'}</td>
-            <td>${row.eq_section || '-'}</td>
-            <td>${row.population || '-'}</td>
+            <td class="details">${details}</td>
             <td class="coord">${formatCoord(row.latitude)}, ${formatCoord(row.longitude)}</td>
             <td>${formatDate(row.created_at)}</td>
           </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
