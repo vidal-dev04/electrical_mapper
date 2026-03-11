@@ -1,0 +1,48 @@
+module.exports = {
+  expo: {
+    name: "Electrical Network Mapper",
+    slug: "electrical-network-mapper",
+    version: "1.0.0",
+    orientation: "default",
+    userInterfaceStyle: "light",
+    platforms: ["ios", "android"],
+    assetBundlePatterns: ["**/*"],
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.electricalnetworkmapper.app"
+    },
+    android: {
+      package: "com.electricalnetworkmapper.app",
+      versionCode: 4,
+      compileSdkVersion: 34,
+      targetSdkVersion: 34,
+      buildToolsVersion: "34.0.0",
+      permissions: [
+        "android.permission.DETECT_SCREEN_CAPTURE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      config: {
+        usesCleartextTraffic: true
+      }
+    },
+    extra: {
+      eas: {
+        projectId: "37fd84b6-3952-4f78-8c15-d1b599caa3c5"
+      }
+    },
+    plugins: [
+      [
+        "expo-build-properties",
+        {
+          android: {
+            usesCleartextTraffic: true,
+            networkSecurityConfig: "network_security_config"
+          }
+        }
+      ]
+    ]
+  }
+};
