@@ -13,7 +13,7 @@ module.exports = {
     },
     android: {
       package: "com.electricalnetworkmapper.app",
-      versionCode: 4,
+      versionCode: 5,
       compileSdkVersion: 34,
       targetSdkVersion: 34,
       buildToolsVersion: "34.0.0",

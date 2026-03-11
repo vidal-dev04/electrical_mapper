@@ -229,13 +229,16 @@ class TransactionQueue {
   }
 
   getApiUrl() {
-  const isDevelopment = __DEV__; // React Native détecte automatiquement
+  // FORCER L'UTILISATION DU BACKEND RENDER UNIQUEMENT
+  // const isDevelopment = __DEV__;
+  // if (isDevelopment) {
+  //   return 'http://192.168.1.4:3000'; // Local pour tests
+  // } else {
+  //   return 'https://electrical-network-backend.onrender.com'; // Production
+  // }
   
-  if (isDevelopment) {
-    return 'http://192.168.1.4:3000'; // Local pour tests
-  } else {
-    return 'https://electrical-network-backend.onrender.com'; // Production
-  }
+  // Utiliser UNIQUEMENT le backend Render (même en dev)
+  return 'https://electrical-network-backend.onrender.com';
 }
 
   getQueueStatus() {
