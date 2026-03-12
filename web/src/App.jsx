@@ -254,12 +254,15 @@ function App() {
         const geometryType = feature.properties.feature_type || 'point'
         const color = feature.properties.couleur || '#3388ff'
 
-        layer.setStyle({
-          color: color,
-          fillColor: color,
-          fillOpacity: 0.3,
-          weight: geometryType === 'line' ? 6 : 3
-        })
+        // setStyle() ne fonctionne que sur les polylines/polygones, pas sur les markers
+        if (layer.setStyle && typeof layer.setStyle === 'function') {
+          layer.setStyle({
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.3,
+            weight: geometryType === 'line' ? 6 : 3
+          })
+        }
 
         layer.addTo(map)
         layer.pm.enable()
