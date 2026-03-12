@@ -279,11 +279,11 @@ function App() {
         map.fitBounds(group.getBounds().pad(0.1))
       }
 
-      setMessage('✅ Carte prête !')
+      setMessage('✅ ELECTRICAL NETWORK MAPPER')
       console.log(`✅ ${features.length} features chargées`)
     } catch (error) {
       console.error('❌ Erreur chargement features:', error)
-      setMessage('✅ Carte prête !')
+      setMessage('✅ ELECTRICAL NETWORK MAPPER')
     }
   }
 

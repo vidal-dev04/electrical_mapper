@@ -46,11 +46,55 @@ function App() {
   }, [])
 
   const generateId = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0
       const v = c === 'x' ? r : (r & 0x3 | 0x8)
       return v.toString(16)
     })
+  }
+
+  const getFeatureColor = (geometryType, properties) => {
+    if (!properties) return '#3388ff'
+    
+    // ÉQUIPEMENTS (Points)
+    if (geometryType === 'point') {
+      const equipType = properties.equipment_type || properties.type
+      if (!equipType) return '#3388ff'
+      
+      const type = equipType.toString().toLowerCase()
+      if (type === 'tfo') return '#9c27b0' // Violet - Transformateur
+      if (type === 'iacm') return '#4caf50' // Vert - IACM
+      if (type === 'poteau_bt') return '#ff8800' // Orange - Poteau BT
+      if (type === 'poteau_mt') return '#0066ff' // Bleu - Poteau MT
+      
+      return '#3388ff'
+    }
+    
+    // LIGNES
+    if (geometryType === 'line') {
+      const lineType = properties.line_type || properties.type
+      if (!lineType) return '#3388ff'
+      
+      const type = lineType.toString().toLowerCase()
+      if (type === 'ligne_bt') return '#ff8800' // Orange - Ligne BT
+      if (type === 'ligne_hta') return '#ff0000' // Rouge - Ligne HTA
+      
+      return '#3388ff'
+    }
+    
+    // ZONES (Polygones/Rectangles/Cercles)
+    if (geometryType === 'polygon' || geometryType === 'circle' || geometryType === 'rectangle') {
+      const zoneStatus = properties.status
+      if (!zoneStatus) return '#3388ff'
+      
+      const status = zoneStatus.toString().toLowerCase()
+      if (status === 'electrifiee') return '#4caf50' // Vert - Électrifiée
+      if (status === 'non_electrifiee') return '#ff0000' // Rouge - Non électrifiée
+      
+      return '#3388ff'
+    }
+    
+    return '#3388ff'
   }
 
   const initMap = () => {
@@ -62,18 +106,18 @@ function App() {
       const map = L.map(mapContainerRef.current, { maxZoom: 20 }).setView([0, 0], 2)
       
       const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
+        attribution: ' OpenStreetMap contributors',
         maxZoom: 19
       }).addTo(map)
 
       const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '© Google',
+        attribution: ' Google',
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
       })
 
       const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenTopoMap (CC-BY-SA)',
+        attribution: ' OpenTopoMap (CC-BY-SA)',
         maxZoom: 17
       })
 
@@ -122,6 +166,18 @@ function App() {
           }
         }
 
+        const color = getFeatureColor(geometryType, layer.feature.properties)
+
+        // setStyle() ne fonctionne que sur les polylines/polygones, pas sur les markers
+        if (layer.setStyle && typeof layer.setStyle === 'function') {
+          layer.setStyle({
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.3,
+            weight: geometryType === 'line' ? 6 : 3
+          })
+        }
+
         featuresRef.current.set(featureId, layer)
 
         layer.on('click', () => {
@@ -150,16 +206,19 @@ function App() {
       setMessage('Chargement des features...')
       loadFeatures(map)
       
-      console.log('✅ Carte initialisée')
+      console.log(' Carte initialisée')
     } catch (error) {
-      setMessage('❌ Erreur: ' + error.message)
-      console.error('❌ Erreur initialisation:', error)
+      setMessage(' Erreur: ' + error.message)
+      console.error(' Erreur initialisation:', error)
     }
   }
 
   const openPropertiesModal = (layer, featureId, geometryType) => {
+    const properties = layer.feature?.properties || {}
+    console.log(' Propriétés chargées:', properties)
+    console.log(' Type de géométrie:', geometryType)
     setCurrentFeature({ layer, featureId, geometryType })
-    setFormData(layer.feature?.properties || {})
+    setFormData(properties)
     setShowModal(true)
   }
 
@@ -173,12 +232,35 @@ function App() {
       updated_at: new Date().toISOString()
     }
 
+    // Appliquer la couleur selon le type
+    const color = getFeatureColor(geometryType, updatedProperties)
+    if (layer.setStyle && typeof layer.setStyle === 'function') {
+      layer.setStyle({
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.3,
+        weight: geometryType === 'line' ? 6 : 3
+      })
+    }
+
     layer.feature = {
       ...feature,
       properties: updatedProperties
     }
 
-    const geometry = layer.toGeoJSON().geometry
+    // Pour les cercles, sauvegarder le rayon et le centre
+    let geometry
+    if (geometryType === 'circle' && layer.getRadius) {
+      const latLng = layer.getLatLng()
+      geometry = {
+        type: 'Point',
+        coordinates: [latLng.lng, latLng.lat]
+      }
+      updatedProperties.radius = layer.getRadius()
+      updatedProperties.circle = true
+    } else {
+      geometry = layer.toGeoJSON().geometry
+    }
 
     const transaction = {
       client_transaction_id: generateId(),
@@ -198,19 +280,11 @@ function App() {
       const result = await apiService.syncTransactions([transaction])
       
       layer.feature.properties.synced = true
-      
-      const color = updatedProperties.couleur || '#3388ff'
-      layer.setStyle({
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.3,
-        weight: geometryType === 'line' ? 6 : 3
-      })
 
       setSyncStatus('synced')
-      console.log('✅ Feature sauvegardée:', result)
+      console.log(' Feature sauvegardée:', result)
     } catch (error) {
-      console.error('❌ Erreur sauvegarde:', error)
+      console.error(' Erreur sauvegarde:', error)
       setSyncStatus('error')
     }
   }
@@ -228,9 +302,9 @@ function App() {
       setSyncStatus('syncing')
       await apiService.syncTransactions([transaction])
       setSyncStatus('synced')
-      console.log('✅ Feature supprimée')
+      console.log(' Feature supprimée')
     } catch (error) {
-      console.error('❌ Erreur suppression:', error)
+      console.error(' Erreur suppression:', error)
       setSyncStatus('error')
     }
   }
@@ -241,18 +315,39 @@ function App() {
       const L = window.L
       
       features.forEach(feature => {
-        const geoJsonLayer = L.geoJSON(feature.geometry)
-        const layer = geoJsonLayer.getLayers()[0]
+        let layer
+        let geometryType = 'point'
+        
+        // Vérifier si c'est un cercle (Point avec radius)
+        if (feature.geometry.type === 'Point' && feature.properties.circle && feature.properties.radius) {
+          geometryType = 'circle'
+          const coords = feature.geometry.coordinates
+          layer = L.circle([coords[1], coords[0]], {
+            radius: feature.properties.radius
+          })
+        } else {
+          // Géométrie normale (GeoJSON)
+          const geoJsonLayer = L.geoJSON(feature.geometry)
+          layer = geoJsonLayer.getLayers()[0]
+          
+          // Déterminer le type de géométrie basé sur geometry.type
+          if (feature.geometry.type === 'Point') {
+            geometryType = 'point'
+          } else if (feature.geometry.type === 'LineString') {
+            geometryType = 'line'
+          } else if (feature.geometry.type === 'Polygon') {
+            geometryType = 'polygon'
+          }
+        }
         
         layer.feature = {
           id: feature.id,
           type: 'Feature',
-          properties: { ...feature.properties, synced: true },
+          properties: { ...feature.properties, feature_type: geometryType, synced: true },
           geometry: feature.geometry
         }
 
-        const geometryType = feature.properties.feature_type || 'point'
-        const color = feature.properties.couleur || '#3388ff'
+        const color = getFeatureColor(geometryType, feature.properties)
 
         // setStyle() ne fonctionne que sur les polylines/polygones, pas sur les markers
         if (layer.setStyle && typeof layer.setStyle === 'function') {
@@ -284,11 +379,11 @@ function App() {
         map.fitBounds(group.getBounds().pad(0.1))
       }
 
-      setMessage('✅ Carte prête !')
+      setMessage('✅ ELECTRICAL NETWORK MAPPER')
       console.log(`✅ ${features.length} features chargées`)
     } catch (error) {
       console.error('❌ Erreur chargement features:', error)
-      setMessage('✅ Carte prête !')
+      setMessage('✅ ELECTRICAL NETWORK MAPPER')
     }
   }
 
@@ -491,19 +586,16 @@ function App() {
         </div>
       </div>
 
-      <div className={`sync-indicator ${syncStatus}`}>
-        {syncStatus === 'synced' && '✓ Synchronisé'}
-        {syncStatus === 'syncing' && '⏳ Sync...'}
-        {syncStatus === 'error' && '⚠ Erreur'}
-      </div>
-
       {showModal && currentFeature && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Propriétés - {currentFeature.geometryType}</h2>
+            <h2>
+              {currentFeature.geometryType === 'point' && 'Équipement'}
+              {currentFeature.geometryType === 'line' && 'Ligne'}
+              {(currentFeature.geometryType === 'polygon' || currentFeature.geometryType === 'circle' || currentFeature.geometryType === 'rectangle') && 'Zone'}
+            </h2>
             <form onSubmit={(e) => { e.preventDefault(); handleSaveModal(); }}>
               {renderFormFields()}
-              <FormField label="Remarques" name="remarques" value={formData.remarques} onChange={setFormData} textarea />
               
               <div className="modal-actions">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-cancel">
