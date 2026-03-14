@@ -8,6 +8,8 @@ function App() {
   const mapContainerRef = useRef(null)
   const mapRef = useRef(null)
   const featuresRef = useRef(new Map())
+  const locationMarkerRef = useRef(null)
+  const watchIdRef = useRef(null)
   const [showModal, setShowModal] = useState(false)
   const [currentFeature, setCurrentFeature] = useState(null)
   const [formData, setFormData] = useState({})
@@ -41,6 +43,10 @@ function App() {
     return () => {
       if (mapRef.current) {
         mapRef.current.remove()
+      }
+      // Arrêter le suivi GPS
+      if (watchIdRef.current) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
       }
     }
   }, [])
@@ -395,24 +401,68 @@ function App() {
     }
   }
 
+  const startLocationTracking = () => {
+    if (!mapRef.current || !navigator.geolocation) {
+      alert('Géolocalisation non supportée.')
+      return
+    }
+
+    const L = window.L
+
+    // Arrêter le suivi précédent si existant
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+    }
+
+    // Démarrer le suivi en temps réel
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords
+
+        // Créer ou mettre à jour le marqueur de position
+        if (!locationMarkerRef.current) {
+          // Créer le marqueur bleu avec un cercle
+          locationMarkerRef.current = L.circleMarker([latitude, longitude], {
+            radius: 8,
+            fillColor: '#4285F4',
+            color: '#ffffff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.9
+          }).addTo(mapRef.current)
+
+          // Ajouter un cercle de précision
+          L.circle([latitude, longitude], {
+            radius: accuracy,
+            fillColor: '#4285F4',
+            color: '#4285F4',
+            weight: 1,
+            opacity: 0.3,
+            fillOpacity: 0.1
+          }).addTo(mapRef.current)
+
+          // Centrer la carte sur la position
+          mapRef.current.setView([latitude, longitude], 17)
+        } else {
+          // Mettre à jour la position du marqueur
+          locationMarkerRef.current.setLatLng([latitude, longitude])
+        }
+      },
+      (error) => {
+        console.error('Erreur géolocalisation:', error)
+        alert('Impossible d\'obtenir votre position.')
+      },
+      { 
+        enableHighAccuracy: true, 
+        timeout: 10000, 
+        maximumAge: 0 
+      }
+    )
+  }
+
   const handleLocate = () => {
     if (!mapRef.current) return
-    
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          mapRef.current.setView([latitude, longitude], 17)
-        },
-        (error) => {
-          console.error('Erreur géolocalisation:', error)
-          alert('Impossible d\'obtenir votre position.')
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      )
-    } else {
-      alert('Géolocalisation non supportée.')
-    }
+    startLocationTracking()
   }
 
   const handleRefresh = () => {
