@@ -17,9 +17,21 @@ function App() {
   const [importData, setImportData] = useState(null)
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, importing: false })
   const [errorModal, setErrorModal] = useState({ show: false, title: '', message: '' })
+  const [userName, setUserName] = useState('')
+  const [showUserModal, setShowUserModal] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
+    localStorage.removeItem('client_id')
+    
+    const storedUserName = localStorage.getItem('userName')
+    if (storedUserName) {
+      setUserName(storedUserName)
+      apiService.clientId = storedUserName
+    } else {
+      setShowUserModal(true)
+    }
+    
     setMessage('Chargement de Leaflet...')
     
     const link = document.createElement('link')
@@ -483,6 +495,21 @@ function App() {
     fileInputRef.current?.click()
   }
 
+  const handleUserNameSubmit = (e) => {
+    e.preventDefault()
+    const name = e.target.userName.value.trim()
+    if (name) {
+      setUserName(name)
+      localStorage.setItem('userName', name)
+      apiService.clientId = name
+      setShowUserModal(false)
+    }
+  }
+
+  const handleChangeUser = () => {
+    setShowUserModal(true)
+  }
+
   const validateGeoJSON = (geojson) => {
     const errors = []
     
@@ -880,6 +907,16 @@ function App() {
 
   return (
     <div className="app">
+      {userName && (
+        <div className="user-bar">
+          <span className="user-name">
+            👤 {userName}
+          </span>
+          <button onClick={handleChangeUser} className="change-user-btn" title="Changer d'utilisateur">
+            ↻
+          </button>
+        </div>
+      )}
       <div className="status">{message}</div>
       <div ref={mapContainerRef} className="map-container"></div>
       
@@ -912,6 +949,31 @@ function App() {
           </button>
         </div>
       </div>
+
+      {showUserModal && (
+        <div className="modal-overlay">
+          <div className="modal-content user-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>👤 Bienvenue</h2>
+            <p className="user-modal-subtitle">Pour tracer vos actions, entrez votre nom :</p>
+            <form onSubmit={handleUserNameSubmit}>
+              <div className="form-field">
+                <input
+                  type="text"
+                  name="userName"
+                  autoFocus
+                  required
+                  defaultValue={userName}
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="btn-save">
+                  Valider
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {errorModal.show && (
         <div className="modal-overlay" onClick={() => setErrorModal({ show: false, title: '', message: '' })}>

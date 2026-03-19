@@ -2,16 +2,7 @@ const API_URL = 'https://electrical-network-backend.onrender.com'
 
 class ApiService {
   constructor() {
-    this.clientId = this.getOrCreateClientId()
-  }
-
-  getOrCreateClientId() {
-    let clientId = localStorage.getItem('client_id')
-    if (!clientId) {
-      clientId = this.generateUUID()
-      localStorage.setItem('client_id', clientId)
-    }
-    return clientId
+    this.clientId = null
   }
 
   generateUUID() {

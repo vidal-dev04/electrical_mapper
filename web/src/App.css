@@ -5,6 +5,41 @@
   flex-direction: column;
 }
 
+/* User Bar */
+.user-bar {
+  padding: 8px 16px;
+  background: #2c3e50;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.change-user-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+
+.change-user-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(180deg);
+}
+
 .status {
   padding: 10px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -353,4 +388,45 @@
   color: #333;
   font-size: 1rem;
   line-height: 1.6;
+}
+
+/* User Modal */
+.user-modal {
+  max-width: 450px;
+}
+
+.user-modal-subtitle {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 1rem;
+}
+
+.user-modal-examples {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.user-modal-examples p {
+  margin: 0 0 0.5rem 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.user-modal-examples ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.user-modal-examples li {
+  color: #667eea;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
+
+.user-modal-examples li:before {
+  content: "• ";
+  margin-right: 0.5rem;
 }
