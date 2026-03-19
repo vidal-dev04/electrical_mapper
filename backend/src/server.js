@@ -5,6 +5,8 @@ import compression from 'compression';
 import dotenv from 'dotenv';
 import featuresRouter from './routes/features.js';
 import exportRouter from './routes/export.js';
+import authRouter from './routes/auth.js';
+import { authenticateToken } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -17,8 +19,9 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/api', featuresRouter);
-app.use('/api/export', exportRouter);
+app.use('/api/auth', authRouter);
+app.use('/api', authenticateToken, featuresRouter);
+app.use('/api/export', authenticateToken, exportRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

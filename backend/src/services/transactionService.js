@@ -1,7 +1,7 @@
 import pool from '../db/pool.js';
 
 class TransactionService {
-  async processTransaction(transactionData) {
+  async processTransaction(transactionData, userId = null, userRole = null) {
     const client = await pool.connect();
     
     try {
@@ -27,15 +27,17 @@ class TransactionService {
 
       switch (operation) {
         case 'create':
-          result = await this._createFeature(client, feature_data, client_id, session_id);
+          result = await this._createFeature(client, feature_data, client_id, session_id, userId);
           featureId = result.id;
           break;
         
         case 'update':
+          await this._checkPermission(client, feature_data.id, userId, userRole);
           result = await this._updateFeature(client, feature_data);
           break;
         
         case 'delete':
+          await this._checkPermission(client, feature_data.id, userId, userRole);
           result = await this._deleteFeature(client, feature_data.id);
           break;
         
@@ -81,17 +83,17 @@ class TransactionService {
     }
   }
 
-  async _createFeature(client, featureData, clientId, sessionId) {
+  async _createFeature(client, featureData, clientId, sessionId, userId = null) {
     const { id, type, geometry, properties } = featureData;
     
     const geomText = this._geometryToWKT(geometry);
     
     const result = await client.query(
       `INSERT INTO electrical_features 
-       (id, feature_type, geometry, properties, client_id, session_id, version)
-       VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, 1)
+       (id, feature_type, geometry, properties, client_id, session_id, user_id, version)
+       VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, $7, 1)
        RETURNING id, feature_type, ST_AsGeoJSON(geometry)::json as geometry, properties, version, created_at`,
-      [id, type, geomText, JSON.stringify(properties || {}), clientId, sessionId]
+      [id, type, geomText, JSON.stringify(properties || {}), clientId, sessionId, userId]
     );
 
     return result.rows[0];
@@ -134,6 +136,35 @@ class TransactionService {
     }
 
     return result.rows[0];
+  }
+
+  async _checkPermission(client, featureId, userId, userRole) {
+    if (!userId || !userRole) {
+      return;
+    }
+
+    if (userRole === 'superviseur') {
+      return;
+    }
+
+    const result = await client.query(
+      'SELECT user_id FROM electrical_features WHERE id = $1 AND deleted_at IS NULL',
+      [featureId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('Feature not found');
+    }
+
+    const featureUserId = result.rows[0].user_id;
+
+    if (featureUserId === null) {
+      throw new Error('Permission refusée : cette feature n\'est pas modifiable par les agents');
+    }
+
+    if (featureUserId !== userId) {
+      throw new Error('Permission refusée : vous ne pouvez modifier que vos propres features');
+    }
   }
 
   async _logFailedTransaction(transactionData, errorMessage) {
@@ -205,17 +236,17 @@ class TransactionService {
     }
   }
 
-  async processBatchTransactions(transactions) {
+  async processBatchTransactions(transactions, userId = null, userRole = null) {
     const results = [];
     
     for (const transaction of transactions) {
       try {
-        const result = await this.processTransaction(transaction);
-        results.push({ ...result, client_transaction_id: transaction.client_transaction_id });
+        const result = await this.processTransaction(transaction, userId, userRole);
+        results.push(result);
       } catch (error) {
         results.push({
           status: 'error',
-          client_transaction_id: transaction.client_transaction_id,
+          transaction_id: transaction.client_transaction_id,
           error: error.message
         });
       }

@@ -5,6 +5,20 @@
   flex-direction: column;
 }
 
+/* Loading Screen */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.loading-message {
+  font-size: 1.5rem;
+  color: white;
+  font-weight: 600;
+}
+
 /* User Bar */
 .user-bar {
   padding: 8px 16px;
@@ -24,7 +38,14 @@
   gap: 6px;
 }
 
-.change-user-btn {
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-btn,
+.logout-btn {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
@@ -35,9 +56,10 @@
   transition: all 0.2s;
 }
 
-.change-user-btn:hover {
+.dashboard-btn:hover,
+.logout-btn:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: rotate(180deg);
+  transform: translateY(-2px);
 }
 
 .status {

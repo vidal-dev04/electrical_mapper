@@ -12,7 +12,10 @@ router.post('/sync', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request: transactions array required' });
     }
 
-    const results = await transactionService.processBatchTransactions(transactions);
+    const userId = req.user?.userId || null;
+    const userRole = req.user?.role || null;
+
+    const results = await transactionService.processBatchTransactions(transactions, userId, userRole);
     
     res.json({
       status: 'success',
@@ -82,8 +85,10 @@ router.get('/pending', async (req, res) => {
 router.post('/transaction', async (req, res) => {
   try {
     const transactionData = req.body;
+    const userId = req.user?.userId || null;
+    const userRole = req.user?.role || null;
     
-    const result = await transactionService.processTransaction(transactionData);
+    const result = await transactionService.processTransaction(transactionData, userId, userRole);
     
     res.json(result);
 

@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from './contexts/AuthContext.jsx'
+import LoginPage from './components/LoginPage.jsx'
+import Dashboard from './components/Dashboard.jsx'
 import apiService from './services/api.js'
 import './App.css'
 
 function App() {
+  const { user, loading, isAuthenticated, isSuperviseur, logout } = useAuth()
   const [message, setMessage] = useState('Initialisation...')
   const [syncStatus, setSyncStatus] = useState('synced')
+  const [showDashboard, setShowDashboard] = useState(false)
   const mapContainerRef = useRef(null)
   const mapRef = useRef(null)
   const featuresRef = useRef(new Map())
@@ -22,15 +27,9 @@ function App() {
   const fileInputRef = useRef(null)
 
   useEffect(() => {
-    localStorage.removeItem('client_id')
+    if (!isAuthenticated) return
     
-    const storedUserName = localStorage.getItem('userName')
-    if (storedUserName) {
-      setUserName(storedUserName)
-      apiService.clientId = storedUserName
-    } else {
-      setShowUserModal(true)
-    }
+    apiService.clientId = user?.username || null
     
     setMessage('Chargement de Leaflet...')
     
@@ -905,18 +904,39 @@ function App() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="app loading-screen">
+        <div className="loading-message">⏳ Chargement...</div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />
+  }
+
+  if (isSuperviseur && showDashboard) {
+    return <Dashboard onClose={() => setShowDashboard(false)} />
+  }
+
   return (
     <div className="app">
-      {userName && (
-        <div className="user-bar">
-          <span className="user-name">
-            👤 {userName}
-          </span>
-          <button onClick={handleChangeUser} className="change-user-btn" title="Changer d'utilisateur">
-            ↻
+      <div className="user-bar">
+        <span className="user-name">
+          👤 {user?.fullName || user?.username} {isSuperviseur && '(Superviseur)'}
+        </span>
+        <div className="user-actions">
+          {isSuperviseur && (
+            <button onClick={() => setShowDashboard(true)} className="dashboard-btn" title="Tableau de bord">
+              📊
+            </button>
+          )}
+          <button onClick={logout} className="logout-btn" title="Déconnexion">
+            🚪
           </button>
         </div>
-      )}
+      </div>
       <div className="status">{message}</div>
       <div ref={mapContainerRef} className="map-container"></div>
       

@@ -13,10 +13,22 @@ class ApiService {
     })
   }
 
+  getAuthHeaders() {
+    const token = localStorage.getItem('authToken')
+    return token ? {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    } : {
+      'Content-Type': 'application/json'
+    }
+  }
+
   async fetchFeatures() {
     try {
       const params = new URLSearchParams({ client_id: this.clientId })
-      const response = await fetch(`${API_URL}/api/features?${params}`)
+      const response = await fetch(`${API_URL}/api/features?${params}`, {
+        headers: this.getAuthHeaders()
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -34,7 +46,7 @@ class ApiService {
     try {
       const response = await fetch(`${API_URL}/api/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({ transactions })
       })
 
@@ -52,7 +64,9 @@ class ApiService {
   async exportGeoJSON() {
     try {
       const params = new URLSearchParams({ client_id: this.clientId })
-      const response = await fetch(`${API_URL}/api/export/geojson?${params}`)
+      const response = await fetch(`${API_URL}/api/export/geojson?${params}`, {
+        headers: this.getAuthHeaders()
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -68,7 +82,9 @@ class ApiService {
   async exportCSV() {
     try {
       const params = new URLSearchParams({ client_id: this.clientId })
-      const response = await fetch(`${API_URL}/api/export/csv?${params}`)
+      const response = await fetch(`${API_URL}/api/export/csv?${params}`, {
+        headers: this.getAuthHeaders()
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -84,7 +100,9 @@ class ApiService {
   async exportHTML() {
     try {
       const params = new URLSearchParams({ client_id: this.clientId })
-      const response = await fetch(`${API_URL}/api/export/html?${params}`)
+      const response = await fetch(`${API_URL}/api/export/html?${params}`, {
+        headers: this.getAuthHeaders()
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
