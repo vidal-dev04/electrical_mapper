@@ -607,6 +607,25 @@ function App() {
     return mobileToWebMapping[featureType] || featureType.toLowerCase()
   }
 
+  const fixGeometry = (geometry) => {
+    if (!geometry || !geometry.coordinates) return geometry
+    
+    // Correction pour Polygon avec niveau de tableau en trop
+    if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates)) {
+      // Vérifier si on a un niveau en trop : [[[[[lon, lat], ...]]] au lieu de [[[lon, lat], ...]]
+      const coords = geometry.coordinates
+      if (coords.length === 1 && Array.isArray(coords[0]) && coords[0].length === 1 && Array.isArray(coords[0][0])) {
+        // Niveau en trop détecté, on le retire
+        return {
+          ...geometry,
+          coordinates: coords[0]
+        }
+      }
+    }
+    
+    return geometry
+  }
+
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -670,7 +689,10 @@ function App() {
         const featureId = generateId()
         let properties = { ...feature.properties }
         
-        let geoType = feature.geometry.type
+        // Corriger la géométrie si nécessaire
+        let geometry = fixGeometry(feature.geometry)
+        
+        let geoType = geometry.type
         if (geoType === 'Point' && feature.properties?.circle) {
           geoType = 'Circle'
         }
@@ -680,8 +702,6 @@ function App() {
         } else {
           properties.feature_type = mapGeometryType(geoType)
         }
-        
-        let geometry = feature.geometry
         
         if (feature.properties?.circle && feature.properties?.radius) {
           properties.circle = true
