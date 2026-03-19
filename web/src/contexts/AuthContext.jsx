@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
+      setLoading(false);
       verifyToken(storedToken);
     } else {
       setLoading(false);
@@ -39,8 +40,8 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
-        setLoading(false);
       } else {
+        console.warn('Token verification failed, logging out');
         logout();
       }
     } catch (error) {

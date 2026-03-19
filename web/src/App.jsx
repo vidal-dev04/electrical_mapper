@@ -65,7 +65,7 @@ function App() {
         navigator.geolocation.clearWatch(watchIdRef.current)
       }
     }
-  }, [])
+  }, [isAuthenticated])
 
   const generateId = () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
