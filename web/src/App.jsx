@@ -13,6 +13,11 @@ function App() {
   const [showModal, setShowModal] = useState(false)
   const [currentFeature, setCurrentFeature] = useState(null)
   const [formData, setFormData] = useState({})
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importData, setImportData] = useState(null)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, importing: false })
+  const [errorModal, setErrorModal] = useState({ show: false, title: '', message: '' })
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     setMessage('Chargement de Leaflet...')
@@ -474,6 +479,268 @@ function App() {
     }
   }
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const validateGeoJSON = (geojson) => {
+    const errors = []
+    
+    if (!geojson || typeof geojson !== 'object') {
+      errors.push('Fichier invalide')
+      return { valid: false, errors }
+    }
+    
+    if (geojson.type !== 'FeatureCollection') {
+      errors.push('Le fichier doit être une FeatureCollection')
+      return { valid: false, errors }
+    }
+    
+    if (!geojson.features || !Array.isArray(geojson.features)) {
+      errors.push('Aucune feature trouvée')
+      return { valid: false, errors }
+    }
+    
+    if (geojson.features.length === 0) {
+      errors.push('Le fichier est vide')
+      return { valid: false, errors }
+    }
+    
+    if (geojson.features.length > 1000) {
+      errors.push('Limite de 1000 features dépassée (' + geojson.features.length + ' features)')
+      return { valid: false, errors }
+    }
+    
+    const geometryTypes = new Set()
+    const supportedTypes = ['Point', 'LineString', 'Polygon']
+    
+    geojson.features.forEach(f => {
+      if (f.geometry && f.geometry.type) {
+        if (f.geometry.type === 'Point' && f.properties?.circle) {
+          geometryTypes.add('Circle')
+        } else if (supportedTypes.includes(f.geometry.type)) {
+          geometryTypes.add(f.geometry.type)
+        } else {
+          errors.push('Type de géométrie non supporté: ' + f.geometry.type)
+        }
+      }
+    })
+    
+    if (errors.length > 0) {
+      return { valid: false, errors }
+    }
+    
+    if (geometryTypes.size === 0) {
+      errors.push('Aucun type de géométrie valide détecté')
+      return { valid: false, errors }
+    }
+    
+    if (geometryTypes.size > 1) {
+      errors.push('Plusieurs types de géométrie détectés: ' + Array.from(geometryTypes).join(', ') + '. Un seul type par fichier.')
+      return { valid: false, errors }
+    }
+    
+    const detectedType = Array.from(geometryTypes)[0]
+    return { valid: true, errors: [], geometryType: detectedType }
+  }
+
+  const detectImportMode = (features) => {
+    if (features.length === 0) return 'external'
+    
+    const firstFeature = features[0]
+    const props = firstFeature.properties || {}
+    
+    if (props.equipment_type || props.line_type || props.status) {
+      return 'native'
+    }
+    
+    return 'external'
+  }
+
+  const mapGeometryType = (geoType) => {
+    const mapping = {
+      'Point': 'point',
+      'LineString': 'line',
+      'Polygon': 'polygon',
+      'Circle': 'circle'
+    }
+    return mapping[geoType] || 'point'
+  }
+
+  const normalizeFeatureType = (featureType, geometryType) => {
+    if (!featureType) return mapGeometryType(geometryType)
+    
+    const mobileToWebMapping = {
+      'Marker': 'point',
+      'Line': 'line',
+      'Polygon': 'polygon',
+      'Rectangle': 'polygon',
+      'Circle': 'circle'
+    }
+    
+    return mobileToWebMapping[featureType] || featureType.toLowerCase()
+  }
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    try {
+      const text = await file.text()
+      const geojson = JSON.parse(text)
+      
+      const validation = validateGeoJSON(geojson)
+      
+      if (!validation.valid) {
+        setErrorModal({
+          show: true,
+          title: 'Erreur de validation',
+          message: validation.errors.join('\n')
+        })
+        event.target.value = ''
+        return
+      }
+      
+      const mode = detectImportMode(geojson.features)
+      const featureType = mapGeometryType(validation.geometryType)
+      
+      setImportData({
+        fileName: file.name,
+        features: geojson.features,
+        geometryType: validation.geometryType,
+        featureType: featureType,
+        mode: mode,
+        total: geojson.features.length
+      })
+      
+      setShowImportModal(true)
+      event.target.value = ''
+      
+    } catch (error) {
+      setErrorModal({
+        show: true,
+        title: 'Erreur de lecture du fichier',
+        message: error.message
+      })
+      event.target.value = ''
+    }
+  }
+
+  const processImport = async () => {
+    if (!importData) return
+    
+    setImportProgress({ current: 0, total: importData.total, importing: true })
+    
+    const features = importData.features
+    const batchSize = 50
+    let successCount = 0
+    let errorCount = 0
+    const errors = []
+    
+    for (let i = 0; i < features.length; i += batchSize) {
+      const batch = features.slice(i, Math.min(i + batchSize, features.length))
+      
+      const transactions = batch.map(feature => {
+        const featureId = generateId()
+        let properties = { ...feature.properties }
+        
+        let geoType = feature.geometry.type
+        if (geoType === 'Point' && feature.properties?.circle) {
+          geoType = 'Circle'
+        }
+        
+        if (importData.mode === 'native') {
+          properties.feature_type = normalizeFeatureType(properties.feature_type, geoType)
+        } else {
+          properties.feature_type = mapGeometryType(geoType)
+        }
+        
+        let geometry = feature.geometry
+        
+        if (feature.properties?.circle && feature.properties?.radius) {
+          properties.circle = true
+          properties.radius = feature.properties.radius
+        }
+        
+        return {
+          client_transaction_id: generateId(),
+          client_id: apiService.clientId,
+          session_id: apiService.clientId,
+          operation: 'create',
+          feature_data: {
+            id: featureId,
+            type: 'Feature',
+            geometry: geometry,
+            properties: properties
+          }
+        }
+      })
+      
+      try {
+        await apiService.syncTransactions(transactions)
+        successCount += transactions.length
+      } catch (error) {
+        for (const transaction of transactions) {
+          try {
+            await apiService.syncTransactions([transaction])
+            successCount++
+          } catch (err) {
+            errorCount++
+            errors.push({
+              id: transaction.feature_data.id,
+              error: err.message
+            })
+          }
+        }
+      }
+      
+      setImportProgress({ current: successCount + errorCount, total: importData.total, importing: true })
+    }
+    
+    setImportProgress({ current: importData.total, total: importData.total, importing: false })
+    
+    let resultMessage = `✅ ${successCount}/${importData.total} features importées`
+    if (errorCount > 0) {
+      resultMessage += `\n❌ ${errorCount} erreurs`
+      if (errors.length > 0 && errors.length <= 5) {
+        resultMessage += ':\n' + errors.map(e => `  • ${e.error}`).join('\n')
+      }
+    }
+    
+    setErrorModal({
+      show: true,
+      title: errorCount > 0 ? 'Import terminé avec erreurs' : 'Import réussi',
+      message: resultMessage
+    })
+    
+    setShowImportModal(false)
+    setImportData(null)
+    
+    if (mapRef.current && successCount > 0) {
+      featuresRef.current.forEach(layer => layer.remove())
+      featuresRef.current.clear()
+      await loadFeatures(mapRef.current)
+    }
+  }
+
+  const getGeometryTypeLabel = (type) => {
+    const labels = {
+      'Point': 'Équipements (Points)',
+      'LineString': 'Lignes',
+      'Polygon': 'Zones (Polygones)',
+      'Circle': 'Zones (Cercles)'
+    }
+    return labels[type] || type
+  }
+
+
+  const getModeLabel = (mode) => {
+    if (mode === 'native') {
+      return 'Export de votre app → Import direct'
+    }
+    return 'GeoJSON externe → Mapping automatique'
+  }
+
   const handleExportGeoJSON = async () => {
     try {
       const data = await apiService.exportGeoJSON()
@@ -623,6 +890,16 @@ function App() {
         <button onClick={handleRefresh} className="control-btn" title="Actualiser">
           🔄
         </button>
+        <button onClick={handleImportClick} className="control-btn import-btn" title="Importer GeoJSON">
+          📂
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".geojson,.json"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
         <div className="export-group">
           <button onClick={handleExportGeoJSON} className="control-btn export-btn">
             GeoJSON
@@ -635,6 +912,108 @@ function App() {
           </button>
         </div>
       </div>
+
+      {errorModal.show && (
+        <div className="modal-overlay" onClick={() => setErrorModal({ show: false, title: '', message: '' })}>
+          <div className="modal-content error-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="error-header">
+              <h2>{errorModal.title.includes('réussi') ? '✅' : '❌'} {errorModal.title}</h2>
+            </div>
+            <div className="error-body">
+              <p style={{ whiteSpace: 'pre-line' }}>{errorModal.message}</p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                onClick={() => setErrorModal({ show: false, title: '', message: '' })} 
+                className="btn-save"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && importData && (
+        <div className="modal-overlay" onClick={() => !importProgress.importing && setShowImportModal(false)}>
+          <div className="modal-content import-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>📂 Import GeoJSON</h2>
+            
+            {!importProgress.importing ? (
+              <>
+                <div className="import-info">
+                  <div className="info-row">
+                    <strong>Fichier :</strong> {importData.fileName}
+                  </div>
+                  <div className="info-row">
+                    <strong>Type :</strong> {getGeometryTypeLabel(importData.geometryType)}
+                  </div>
+                  <div className="info-row">
+                    <strong>Total :</strong> {importData.total} features
+                  </div>
+                  <div className="info-row">
+                    <strong>Import par batch de :</strong> 50 features
+                  </div>
+                  <div className="info-row mode-info">
+                    <strong>Mode :</strong> {getModeLabel(importData.mode)}
+                  </div>
+                </div>
+                
+                <div className="preview-section">
+                  <h3>📋 Aperçu ({Math.min(3, importData.features.length)} premiers)</h3>
+                  <div className="preview-list">
+                    {importData.features.slice(0, 3).map((feature, idx) => {
+                      const props = feature.properties || {}
+                      const coords = feature.geometry.coordinates
+                      let coordStr = ''
+                      if (feature.geometry.type === 'Point') {
+                        coordStr = `${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}`
+                      } else {
+                        coordStr = `${coords[0]?.length || 0} points`
+                      }
+                      
+                      let label = props.name || props.nom || props.equipment_type || props.line_type || props.type || 'Feature'
+                      
+                      return (
+                        <div key={idx} className="preview-item">
+                          <div className="preview-label">{idx + 1}. {label}</div>
+                          <div className="preview-coords">{coordStr}</div>
+                        </div>
+                      )
+                    })}
+                    {importData.features.length > 3 && (
+                      <div className="preview-more">... et {importData.features.length - 3} autres</div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowImportModal(false)} className="btn-cancel">
+                    Annuler
+                  </button>
+                  <button type="button" onClick={processImport} className="btn-save">
+                    ✅ Importer ({importData.total})
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="import-progress">
+                <h3>⏳ Import en cours...</h3>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="progress-text">
+                  {importProgress.current} / {importProgress.total} features
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showModal && currentFeature && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
